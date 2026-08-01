@@ -5,93 +5,164 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Countback clinical console</title>
     <style>
-      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #07100d; color: #e8f0ec; }
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        --bg: #07100d; --panel: #0d1914; --line: #20372c; --card: #11211a; --card-line: #294638;
+        --text: #e8f0ec; --dim: #8fa69a; --accent: #4ad295; --warn: #f0bd68; --danger: #f07178;
+        background: var(--bg); color: var(--text);
+      }
       * { box-sizing: border-box; }
-      body { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
-      header, .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-      h1 { font-size: 28px; margin: 0; } h2 { font-size: 17px; margin: 0 0 16px; } h3 { margin: 0 0 6px; font-size: 15px; }
-      .muted, time { color: #8fa69a; } #status { color: #f0bd68; }
-      .grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; margin-top: 22px; }
+      body { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+      h1 { font-size: 26px; margin: 0; letter-spacing: -.01em; }
+      h2 { font-size: 13px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+      h3 { margin: 0 0 4px; font-size: 15px; }
+      .muted, time { color: var(--dim); }
+      header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .pills { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      .pill { border-radius: 999px; padding: 4px 10px; background: #16281f; border: 1px solid var(--card-line); font-size: 12px; }
+      .pill b { color: var(--accent); font-weight: 650; }
+      .pill.warn b { color: var(--warn); } .pill.off b { color: var(--danger); }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; margin-right: 6px; }
+      .dot.live { background: var(--accent); box-shadow: 0 0 0 3px rgba(74,210,149,.16); }
+
+      /* Call bar */
+      .callbar { margin-top: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+                 padding: 16px 18px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+      button { border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer; background: var(--accent);
+               color: #04140d; font-weight: 700; font-size: 15px; }
+      button:disabled { cursor: not-allowed; opacity: .4; }
+      button.danger { background: var(--danger); color: #210507; }
+      .callmeta { display: flex; flex-direction: column; gap: 2px; }
+      #call-status { font-weight: 600; }
+      .mic { display: flex; align-items: center; gap: 3px; height: 22px; margin-left: auto; }
+      .mic i { width: 3px; background: var(--accent); border-radius: 2px; height: 4px; opacity: .35; }
+      .mic.on i { animation: bounce .9s ease-in-out infinite; opacity: 1; }
+      .mic.on i:nth-child(2){animation-delay:.1s} .mic.on i:nth-child(3){animation-delay:.2s}
+      .mic.on i:nth-child(4){animation-delay:.3s} .mic.on i:nth-child(5){animation-delay:.4s}
+      @keyframes bounce { 0%,100%{height:4px} 50%{height:20px} }
+
+      /* Escalation banner */
+      #escalation { display: none; margin-top: 14px; background: #2a0f13; border: 1px solid #7d3038;
+                    border-left: 4px solid var(--danger); border-radius: 10px; padding: 14px 16px; }
+      #escalation.show { display: block; }
+      #escalation strong { color: var(--danger); }
+
+      .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; margin-top: 18px; align-items: start; }
       .stack { display: grid; gap: 18px; }
-      section { background: #0d1914; border: 1px solid #20372c; border-radius: 14px; padding: 18px; }
-      .medication, .issue, .event { background: #11211a; border: 1px solid #294638; border-radius: 9px; padding: 12px; }
-      .medication + .medication, .issue + .issue, .event + .event { margin-top: 8px; }
-      .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-      button { border: 0; border-radius: 8px; padding: 9px 12px; cursor: pointer; background: #4ad295; color: #04140d; font-weight: 700; }
-      button:disabled { cursor: not-allowed; opacity: .45; }
-      button.secondary { background: #233d31; color: #dcebe3; } button.danger { background: #f07178; color: #210507; }
-      textarea { width: 100%; min-height: 70px; resize: vertical; border: 1px solid #365746; background: #08120e; color: #e8f0ec; border-radius: 8px; padding: 10px; }
-      .badge { display: inline-block; border-radius: 999px; padding: 3px 8px; background: #244334; font-size: 12px; }
-      .high { background: #682e34; } .moderate { background: #634d24; }
-      #events { max-height: 330px; overflow: auto; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 6px 0 0; color: #aebfb6; }
-      #result { min-height: 22px; color: #75dfac; font-weight: 650; }
-      @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } header { align-items: flex-start; flex-direction: column; } }
+      section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+
+      /* Transcript */
+      #transcript { max-height: 460px; min-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+      .turn { max-width: 86%; padding: 10px 13px; border-radius: 12px; line-height: 1.45; }
+      .turn.agent { background: #14291f; border: 1px solid var(--card-line); align-self: flex-start; border-bottom-left-radius: 4px; }
+      .turn.patient { background: #16232e; border: 1px solid #2b4457; align-self: flex-end; border-bottom-right-radius: 4px; }
+      .turn .who { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--dim); margin-bottom: 3px; }
+
+      /* Activity feed */
+      #activity { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+      .act { display: flex; gap: 10px; background: var(--card); border: 1px solid var(--card-line);
+             border-radius: 9px; padding: 9px 11px; font-size: 13px; line-height: 1.4; }
+      .act .ico { flex: none; width: 20px; text-align: center; }
+      .act .body { flex: 1; min-width: 0; }
+      .act .meta { font-size: 11px; color: var(--dim); margin-top: 2px; }
+      .act.danger { border-color: #7d3038; background: #230f13; }
+      .act.good { border-color: #2f6b4c; }
+
+      /* Medications + issues */
+      .medication, .issue { background: var(--card); border: 1px solid var(--card-line); border-radius: 9px; padding: 11px 12px; }
+      .medication + .medication, .issue + .issue { margin-top: 8px; }
+      .medication { display: flex; align-items: flex-start; gap: 10px; }
+      .medication .state { flex: none; font-size: 15px; width: 20px; text-align: center; }
+      .badge { display: inline-block; border-radius: 999px; padding: 3px 9px; background: #244334; font-size: 11px; font-weight: 650; }
+      .badge.high { background: #682e34; } .badge.moderate { background: #634d24; }
+      .badge.live { background: #1d4b36; color: var(--accent); } .badge.stubbed { background: #4a3a1a; color: var(--warn); }
+
+      /* Coverage card */
+      #coverage { display: none; } #coverage.show { display: block; }
+      .copay { font-size: 30px; font-weight: 750; color: var(--accent); letter-spacing: -.02em; }
+
+      details { margin-top: 4px; }
+      summary { cursor: pointer; color: var(--dim); font-size: 12px; }
+      #events { max-height: 260px; overflow: auto; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 10px; }
+      .event { background: var(--card); border: 1px solid var(--card-line); border-radius: 7px; padding: 8px 10px; }
+      .event + .event { margin-top: 6px; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 5px 0 0; color: #aebfb6; }
+      .empty { color: var(--dim); font-size: 13px; }
+      @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
     </style>
   </head>
   <body>
     <header>
-      <div><h1>Countback</h1><div class="muted">Medication reconciliation · clinician review</div></div>
-      <div><span id="mode" class="badge">loading</span> <span id="status">connecting</span></div>
+      <div>
+        <h1>Countback</h1>
+        <div class="muted">Post-discharge medication review · everything the agent does, live</div>
+      </div>
+      <div class="pills">
+        <span class="pill" id="p-clinical">clinical <b>…</b></span>
+        <span class="pill" id="p-insurance">insurance <b>…</b></span>
+        <span class="pill" id="p-voice">voice <b>…</b></span>
+        <span class="pill"><span class="dot" id="live-dot"></span><span id="status">connecting</span></span>
+      </div>
     </header>
+
+    <div class="callbar">
+      <button id="start-call">Start call</button>
+      <button id="end-call" class="danger" style="display:none">End call</button>
+      <div class="callmeta">
+        <div id="call-status">Call not started.</div>
+        <div class="muted" id="patient-name">Loading patient…</div>
+      </div>
+      <div class="mic" id="mic"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div id="escalation">
+      <strong>Urgent escalation triggered</strong>
+      <div id="escalation-text" class="muted"></div>
+    </div>
 
     <div class="grid">
       <div class="stack">
         <section>
-          <h2 id="patient-name">Synthetic patient</h2>
-          <div id="medications"></div>
+          <h2>Live transcript</h2>
+          <div id="transcript"><div class="empty">Start the call and speak — the conversation appears here.</div></div>
         </section>
 
         <section>
-          <h2>Demo the reconciliation</h2>
-          <div class="controls">
-            <button data-scenario="match">Matching bottle</button>
-            <button class="secondary" data-scenario="dose">Wrong frequency</button>
-            <button class="secondary" data-scenario="cost">Stopped because of cost</button>
-            <button class="secondary" data-scenario="extra">Not prescribed</button>
-          </div>
-          <div id="result">Choose a scenario.</div>
+          <h2>Discharge medications</h2>
+          <div id="medications"><div class="empty">Loading…</div></div>
         </section>
 
-        <section>
-          <h2>Voice call</h2>
-          <div class="controls">
-            <button id="start-call">Start call</button>
-            <button id="end-call" class="danger" style="display:none">End call</button>
-          </div>
-          <div id="call-status" class="muted">Call not started.</div>
-        </section>
-
-        <section>
-          <h2>Patient words → clinician</h2>
-          <textarea id="patient-words">I have felt dizzy since I came home.</textarea>
-          <div class="controls">
-            <button id="symptom">Record verbatim</button>
-            <button id="urgent" class="danger">Urgent escalation demo</button>
-          </div>
-          <div class="muted">No symptom assessment or medication advice is generated.</div>
+        <section id="coverage">
+          <h2>Live eligibility check</h2>
+          <div id="coverage-body"></div>
         </section>
       </div>
 
       <div class="stack">
         <section>
-          <div class="row"><h2>Flagged for clinician review</h2><button id="refresh" class="secondary">Refresh</button></div>
-          <div id="issues"><div class="muted">No issues yet.</div></div>
+          <h2>Behind the scenes</h2>
+          <div id="activity"><div class="empty">Tool calls, Medplum writes, and payer checks appear here as they happen.</div></div>
         </section>
+
         <section>
-          <h2>Integration event log</h2>
-          <div id="events"></div>
+          <h2>Flagged for clinician review</h2>
+          <div id="issues"><div class="empty">No issues yet.</div></div>
+          <details>
+            <summary>Raw integration event stream</summary>
+            <div id="events"></div>
+          </details>
         </section>
       </div>
     </div>
 
     <script>
       const $ = (selector) => document.querySelector(selector);
-      const scenarios = {
-        match: { labelText: 'Metformin 500 mg twice daily', patientWords: 'My bottle says Metformin 500 milligrams, take it twice a day.', taking: true },
-        dose: { labelText: 'Metformin 500 mg once daily', patientWords: 'My bottle says Metformin 500 milligrams once a day.', taking: true },
-        cost: { labelText: 'Lisinopril 10 mg once daily', patientWords: 'I stopped taking Lisinopril because it costs too much.', taking: false, stoppedReason: 'cost' },
-        extra: { labelText: 'Demo medicine not on discharge list 20 mg daily', patientWords: 'I am also taking this other bottle every day.', taking: true },
+      const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text !== undefined) node.textContent = text;
+        return node;
       };
 
       async function json(url, options) {
@@ -101,65 +172,236 @@
         return body;
       }
 
+      /* ── adapters + patient ─────────────────────────────────────────────── */
+
+      let medications = [];
+
+      function setPill(id, value, ok) {
+        const pill = $(id);
+        pill.className = 'pill' + (ok === true ? '' : ok === false ? ' off' : ' warn');
+        pill.querySelector('b').textContent = value;
+      }
+
       async function loadPatient() {
         const [health, patient] = await Promise.all([json('/health'), json('/api/demo/patient')]);
-        $('#mode').textContent = `clinical: ${health.adapters.clinical}`;
-        const voiceReady = health.adapters.voice === 'deepgram';
+        const a = health.adapters;
+        setPill('#p-clinical', a.clinical, a.clinical === 'medplum');
+        setPill('#p-insurance', a.insurance, a.insurance === 'stedi');
+        setPill('#p-voice', a.voice, a.voice === 'deepgram');
+
+        const voiceReady = a.voice === 'deepgram';
         $('#start-call').disabled = !voiceReady;
         $('#call-status').textContent = voiceReady
           ? 'Ready to start a voice call.'
           : 'Deepgram is not configured. Add DEEPGRAM_API_KEY to .env and restart the server.';
         $('#patient-name').textContent = patient.displayName;
-        $('#medications').replaceChildren(...patient.medications.map((medication) => {
-          const row = document.createElement('div'); row.className = 'medication';
-          row.innerHTML = `<h3></h3><div class="muted"></div>`;
-          row.querySelector('h3').textContent = medication.display;
-          row.querySelector('div').textContent = medication.instructions || 'No instructions recorded';
+
+        medications = patient.medications.map((m) => ({ ...m, state: 'pending' }));
+        renderMedications();
+      }
+
+      const MED_STATE = {
+        pending:        { icon: '○', note: '' },
+        match:          { icon: '✓', note: 'Confirmed by patient' },
+        'not-taking':   { icon: '⚠', note: 'Patient stopped taking this' },
+        'different-label': { icon: '⚠', note: 'Label differs from prescription' },
+        'not-prescribed':  { icon: '⚠', note: 'Not on the discharge list' },
+      };
+
+      function renderMedications() {
+        if (!medications.length) { $('#medications').replaceChildren(el('div', 'empty', 'No medications on file.')); return; }
+        $('#medications').replaceChildren(...medications.map((medication) => {
+          const state = MED_STATE[medication.state] ?? MED_STATE.pending;
+          const row = el('div', 'medication');
+          row.append(el('div', 'state', state.icon));
+          const body = el('div');
+          body.append(el('h3', null, medication.display));
+          body.append(el('div', 'muted', medication.instructions || 'No instructions recorded'));
+          if (state.note) body.append(el('div', 'muted', state.note));
+          row.append(body);
           return row;
         }));
       }
 
+      function markMedication(name, kind) {
+        if (!name) return;
+        const needle = String(name).toLowerCase();
+        const hit = medications.find((m) => needle.includes(m.display.toLowerCase()));
+        if (hit) { hit.state = kind; renderMedications(); }
+      }
+
       async function loadIssues() {
         const issues = await json('/api/demo/issues');
-        if (!issues.length) { $('#issues').innerHTML = '<div class="muted">No issues yet.</div>'; return; }
+        if (!issues.length) { $('#issues').replaceChildren(el('div', 'empty', 'No issues yet.')); return; }
         $('#issues').replaceChildren(...issues.map((issue) => {
-          const row = document.createElement('div'); row.className = 'issue';
-          const title = document.createElement('h3'); title.textContent = issue.summary;
-          const badge = document.createElement('span'); badge.className = `badge ${issue.severity}`; badge.textContent = issue.severity;
-          const words = document.createElement('div'); words.textContent = `“${issue.patientWords}”`;
-          const time = document.createElement('time'); time.textContent = new Date(issue.createdAt).toLocaleTimeString();
-          row.append(title, badge, words, time); return row;
+          const row = el('div', 'issue');
+          row.append(el('h3', null, issue.summary));
+          row.append(el('span', `badge ${issue.severity}`, issue.severity));
+          row.append(el('div', null, `“${issue.patientWords}”`));
+          row.append(el('time', null, new Date(issue.createdAt).toLocaleTimeString()));
+          return row;
         }));
       }
 
-      document.querySelectorAll('[data-scenario]').forEach((button) => button.addEventListener('click', async () => {
-        try {
-          const result = await json('/api/demo/reconcile', { method: 'POST', body: JSON.stringify(scenarios[button.dataset.scenario]) });
-          $('#result').textContent = result.kind === 'match' ? 'Match — no issue created.' : `${result.kind} — clinician issue created${result.shouldCheckCoverage ? '; voice should call insurance next.' : '.'}`;
-          await loadIssues();
-        } catch (error) { $('#result').textContent = error.message; }
-      }));
+      /* ── transcript ─────────────────────────────────────────────────────── */
 
-      async function recordSymptom(urgent) {
-        const patientWords = $('#patient-words').value.trim();
-        if (!patientWords) return;
-        const result = await json('/api/demo/symptom', { method: 'POST', body: JSON.stringify({ patientWords, urgent }) });
-        $('#result').textContent = urgent ? result.spokenResponse : 'Patient words recorded verbatim for clinician review.';
-        await loadIssues();
+      let transcriptStarted = false;
+
+      function addTurn(role, text) {
+        if (!text) return;
+        if (!transcriptStarted) { $('#transcript').replaceChildren(); transcriptStarted = true; }
+        const turn = el('div', `turn ${role}`);
+        turn.append(el('div', 'who', role === 'agent' ? 'Agent' : 'Patient'));
+        turn.append(el('div', null, text));
+        $('#transcript').append(turn);
+        $('#transcript').scrollTop = $('#transcript').scrollHeight;
       }
-      $('#symptom').addEventListener('click', () => recordSymptom(false));
-      $('#urgent').addEventListener('click', () => recordSymptom(true));
-      $('#refresh').addEventListener('click', loadIssues);
+
+      /* ── activity feed ──────────────────────────────────────────────────── */
+
+      let activityStarted = false;
+
+      function addActivity(icon, title, meta, tone) {
+        if (!activityStarted) { $('#activity').replaceChildren(); activityStarted = true; }
+        const row = el('div', `act${tone ? ' ' + tone : ''}`);
+        row.append(el('div', 'ico', icon));
+        const body = el('div', 'body');
+        body.append(el('div', null, title));
+        if (meta) body.append(el('div', 'meta', meta));
+        row.append(body);
+        $('#activity').prepend(row);
+      }
+
+      const TOOL_LABELS = {
+        get_prescribed_medications: 'Loading the discharge medication list',
+        record_medication_report: 'Recording what the patient read from the bottle',
+        check_insurance_coverage: 'Checking live insurance eligibility',
+        escalate_urgent: 'Urgent escalation',
+        record_symptom: 'Recording the symptom verbatim',
+      };
+
+      let pendingCoverageFor = null;
+
+      function showCoverage(data) {
+        const body = el('div');
+        if (data.copay) {
+          body.append(el('div', 'copay', data.copay));
+          body.append(el('div', 'muted', `Copay for ${data.medication ?? 'this medication'}`));
+        } else {
+          body.append(el('div', null, 'The payer returned no copay for this medication.'));
+        }
+        const badge = el('span', `badge ${data.stubbed ? 'stubbed' : 'live'}`,
+          data.stubbed ? 'recorded / mock — not a live payer response' : 'live payer response');
+        body.append(el('div', null, '')).append(badge);
+        $('#coverage-body').replaceChildren(body);
+        $('#coverage').classList.add('show');
+      }
+
+      function escalate(text) {
+        $('#escalation-text').textContent = text || 'The medication review stopped and a high-severity issue was written.';
+        $('#escalation').classList.add('show');
+      }
+
+      /* Translate a bus event into something a human can read. */
+      function handleEvent(event) {
+        const d = event.data ?? {};
+        switch (event.type) {
+          case 'transcript':
+            addTurn(d.role, d.text);
+            return;
+
+          case 'tool.call':
+            addActivity('🛠', TOOL_LABELS[d.tool] ?? d.tool,
+              d.args && Object.keys(d.args).length ? JSON.stringify(d.args) : 'voice → tool');
+            return;
+          case 'tool.result':
+            addActivity('↩', `${TOOL_LABELS[d.tool] ?? d.tool} returned`, null, 'good');
+            return;
+
+          case 'reconciliation.result':
+            markMedication(d.medication, d.kind);
+            addActivity(d.kind === 'match' ? '✓' : '⚠',
+              d.kind === 'match' ? `${d.medication} matches the prescription` : `${d.medication} — ${d.kind}`,
+              'clinical reconciliation', d.kind === 'match' ? 'good' : null);
+            return;
+
+          case 'coverage.check.request':
+            // The response carries no medication name, so hold on to it here.
+            pendingCoverageFor = d.medicationName ?? null;
+            addActivity('💳', `Asking the payer about ${d.medicationName}`, 'insurance · X12 270 request');
+            return;
+          case 'coverage.result':
+          case 'coverage.check.response': {
+            const medication = d.medication ?? d.medicationName ?? pendingCoverageFor;
+            markMedication(medication, 'not-taking');
+            showCoverage({ ...d, medication });
+            addActivity('💳', d.copay ? `Payer returned a ${d.copay} copay` : 'Payer returned no copay',
+              d.stubbed ? 'stubbed — not a live payer response' : 'live 271 response', d.stubbed ? null : 'good');
+            return;
+          }
+
+          case 'escalation.detected':
+            escalate(`Trigger phrase: “${d.trigger}”`);
+            addActivity('🚨', 'Urgent trigger detected — review stopped', d.trigger, 'danger');
+            return;
+          case 'escalation.triggered':
+            escalate(d.patientWords ? `Patient said: “${d.patientWords}”` : '');
+            addActivity('🚨', 'Fixed escalation line delivered', 'never model-generated', 'danger');
+            return;
+
+          case 'medplum.create.request':
+            addActivity('📝', `Writing ${d.resourceType} to Medplum`, d.severity ? `severity: ${d.severity}` : null);
+            return;
+          case 'medplum.create.response':
+            addActivity('📝', 'Written to Medplum', d.resource, 'good');
+            loadIssues().catch(() => {});
+            return;
+          case 'medplum.search.response':
+            addActivity('🔎', `Medplum returned ${d.count} ${d.resourceType}`, null);
+            return;
+          case 'medplum.read.response':
+            addActivity('🔎', 'Loaded patient from Medplum', d.resource);
+            return;
+          case 'medplum.login.response':
+            addActivity('🔑', 'Authenticated with Medplum', d.profile, 'good');
+            return;
+
+          case 'session.active':
+            addActivity('📞', 'Voice session live', 'Deepgram connected', 'good');
+            return;
+          case 'session.stopped':
+            addActivity('📞', 'Voice session ended', null);
+            return;
+          case 'session.error':
+          case 'call.error':
+            addActivity('✕', 'Call failed', d.error, 'danger');
+            return;
+          case 'call.rejected':
+            addActivity('✕', 'Call rejected', d.reason, 'danger');
+            return;
+          case 'request.failed':
+            addActivity('✕', 'Request failed', d.message, 'danger');
+            return;
+
+          case 'server.started':
+          case 'console.connected':
+          case 'voice.adapter.ready':
+            return; // startup noise; visible in the raw stream
+          default:
+            return;
+        }
+      }
+
+      /* ── event socket ───────────────────────────────────────────────────── */
 
       let eventSocket = null;
       let reconnectTimer = null;
 
-      function showEvent({ data }) {
-        const event = JSON.parse(data); const row = document.createElement('div'); row.className = 'event';
-        const time = document.createElement('time'); time.textContent = new Date(event.at).toLocaleTimeString();
-        const type = document.createElement('strong'); type.textContent = `${event.source} · ${event.type}`;
-        row.append(time, type);
-        if (event.data !== undefined) { const details = document.createElement('pre'); details.textContent = JSON.stringify(event.data, null, 2); row.append(details); }
+      function showRaw(event) {
+        const row = el('div', 'event');
+        row.append(el('time', null, new Date(event.at).toLocaleTimeString() + ' '));
+        row.append(el('strong', null, `${event.source} · ${event.type}`));
+        if (event.data !== undefined) row.append(el('pre', null, JSON.stringify(event.data)));
         $('#events').prepend(row);
       }
 
@@ -168,21 +410,26 @@
         eventSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/events`);
         eventSocket.addEventListener('open', () => {
           $('#status').textContent = 'live';
-          $('#status').style.color = '#72d5a5';
+          $('#live-dot').classList.add('live');
         });
-        eventSocket.addEventListener('message', showEvent);
+        eventSocket.addEventListener('message', ({ data }) => {
+          const event = JSON.parse(data);
+          showRaw(event);
+          try { handleEvent(event); } catch (error) { console.error('render failed', error); }
+        });
         eventSocket.addEventListener('close', () => {
           $('#status').textContent = 'reconnecting…';
-          $('#status').style.color = '#f0bd68';
+          $('#live-dot').classList.remove('live');
           reconnectTimer = setTimeout(connectEvents, 1000);
         });
       }
 
       connectEvents();
+      Promise.all([loadPatient(), loadIssues()]).catch((error) => {
+        $('#call-status').textContent = error.message;
+      });
 
-      Promise.all([loadPatient(), loadIssues()]).catch((error) => { $('#result').textContent = error.message; });
-
-      // ── Voice call ──────────────────────────────────────────────────────────
+      /* ── Voice call (audio pipeline unchanged) ──────────────────────────── */
       let callWs = null;
       let micStream = null;
       let audioCtx = null;
@@ -255,6 +502,7 @@
                 if (callWs?.readyState === WebSocket.OPEN) callWs.send(event.data);
               };
               $('#call-status').textContent = 'Live — speak now.';
+              $('#mic').classList.add('on');
             }
             return;
           }
@@ -303,6 +551,7 @@
         $('#start-call').disabled = false;
         $('#start-call').style.display = '';
         $('#end-call').style.display = 'none';
+        $('#mic').classList.remove('on');
       }
 
       $('#start-call').addEventListener('click', startCall);
