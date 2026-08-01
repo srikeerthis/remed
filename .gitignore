@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+
+# Probe output — real payer responses. Never commit.
+.stedi-last.json
+
+*.log
+.DS_Store

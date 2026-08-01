@@ -1,0 +1,27 @@
+{
+  "name": "countback",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "seed": "tsx scripts/seed.ts",
+    "check": "tsc --noEmit",
+    "stedi:probe": "tsx src/insurance/probe.ts",
+    "stedi:mock": "tsx src/insurance/mock-server.ts"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^3",
+    "@medplum/core": "^4",
+    "@medplum/fhirtypes": "^4",
+    "dotenv": "^16",
+    "express": "^4",
+    "ws": "^8"
+  },
+  "devDependencies": {
+    "@types/express": "^4",
+    "@types/node": "^22",
+    "@types/ws": "^8",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
