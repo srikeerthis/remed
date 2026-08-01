@@ -1,6 +1,7 @@
 import { ClinicalApi, InsuranceApi, ReportedMedication } from '../contract.js';
 import { bus } from '../bus.js';
 import { URGENT_ESCALATION_RESPONSE } from './index.js';
+import { detectEscalation } from './prompt.js';
 
 export interface ToolCall {
   name: string;
@@ -116,6 +117,11 @@ async function handleEscalate(
   clinical: ClinicalApi,
 ): Promise<ToolResult> {
   const patientWords = String(args.trigger_phrase ?? '');
+  const trigger = detectEscalation(patientWords);
+  if (!trigger) {
+    bus.publish({ source: 'voice', type: 'escalation.rejected', data: { patientWords, reason: 'No hardcoded urgent trigger matched' } });
+    return { output: 'Please continue the medication review.', shouldEndCall: false };
+  }
   bus.publish({ source: 'voice', type: 'escalation.triggered', data: { patientWords } });
   await clinical.recordUrgentIssue({ patientId, patientWords }).catch((err: unknown) => {
     bus.publish({ source: 'voice', type: 'escalation.record.failed', data: { error: String(err) } });

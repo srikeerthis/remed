@@ -25,6 +25,7 @@ export async function createDeepgramSession(
   const client = new DeepgramClient({ apiKey });
 
   const socket = await client.agent.v1.connect({ Authorization: apiKey });
+  let deepgramOpen = false;
   let resolveSettingsApplied!: () => void;
   let rejectSettingsApplied!: (error: Error) => void;
   const settingsApplied = new Promise<void>((resolve, reject) => {
@@ -106,17 +107,23 @@ export async function createDeepgramSession(
   });
 
   socket.on('close', () => {
+    deepgramOpen = false;
     bus.publish({ source: 'voice', type: 'deepgram.closed', data: {} });
     rejectSettingsApplied(new Error('Deepgram closed before applying settings'));
+    if (browserSocket.readyState === WebSocket.OPEN) {
+      browserSocket.close(1011, 'Voice service ended');
+    }
   });
 
   socket.on('error', (err) => {
+    deepgramOpen = false;
     bus.publish({ source: 'voice', type: 'deepgram.error', data: { message: err.message } });
     rejectSettingsApplied(err);
   });
 
   socket.connect();
   await socket.waitForOpen();
+  deepgramOpen = true;
   bus.publish({ source: 'voice', type: 'deepgram.open', data: {} });
   socket.sendSettings({
     type: 'Settings',
@@ -143,6 +150,7 @@ export async function createDeepgramSession(
 
   return {
     sendAudio(chunk: Buffer) {
+      if (!deepgramOpen) return;
       socket.sendMedia(chunk);
     },
     close() {
