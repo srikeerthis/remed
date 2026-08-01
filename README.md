@@ -2,7 +2,7 @@
 
 Countback is a synthetic-patient medication-reconciliation voice demo built on Medplum, Deepgram, and Stedi. Read `CLAUDE.md` before changing code.
 
-Persons A and C should follow `INTEGRATION.md` when connecting the Deepgram and Stedi implementations to the backend branch.
+Persons A and C should follow `INTEGRATION.md` when connecting the Deepgram and Stedi implementations. The credential-dependent and pre-demo work is tracked in `REMAINING.md`.
 
 ## Start locally
 
@@ -19,6 +19,14 @@ npm run dev
 Open http://localhost:3000. Without credentials, the server deliberately uses the interactive clinical demo adapter and insurance stub so the team can rehearse immediately.
 
 The credential-free clinical demo is fully interactive: use the buttons to show a matching bottle, a dose/frequency discrepancy, a medication stopped because of cost, verbatim symptom capture, and a high-severity urgent escalation. The event log and clinician issue list update live.
+
+## API verification
+
+```bash
+npm run test:api
+```
+
+The integration suite launches isolated Countback and Stedi-mock processes and verifies the console, health status, patient review, matching and mismatched medication reconciliation, cost routing, parsed coverage, symptom capture, urgent fixed response, issue listing, and malformed-request responses.
 
 ## Connect Medplum (Person B)
 

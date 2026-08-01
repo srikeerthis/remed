@@ -69,6 +69,31 @@ app.post('/api/demo/reconcile', async (request, response, next) => {
   }
 });
 
+app.post('/api/demo/coverage', async (request, response, next) => {
+  try {
+    const { medicationName } = request.body as Record<string, unknown>;
+    if (typeof medicationName !== 'string' || !medicationName.trim()) {
+      response.status(400).json({ error: 'medicationName is required' });
+      return;
+    }
+    const review = await clinical.getPatientReview(demoPatientId);
+    if (!review.memberId) {
+      response.status(409).json({ error: 'Patient has no insurance member id' });
+      return;
+    }
+    bus.publish({ source: 'insurance', type: 'coverage.check.request', data: { medicationName } });
+    const result = await insuranceApi.checkCoverage(medicationName, review.memberId);
+    bus.publish({
+      source: 'insurance',
+      type: 'coverage.check.response',
+      data: { covered: result.covered, copay: result.copay, stubbed: result.stubbed },
+    });
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post('/api/demo/symptom', async (request, response, next) => {
   try {
     const { patientWords, urgent } = request.body as Record<string, unknown>;

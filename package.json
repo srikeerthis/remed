@@ -13,6 +13,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "stedi:probe": "tsx src/insurance/probe.ts",
     "stedi:mock": "tsx src/insurance/mock-server.ts",
+    "test:api": "tsx --test tests/api.test.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {
