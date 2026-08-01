@@ -44,6 +44,22 @@ These are product decisions, not preferences. Do not "improve" past them.
 - `@medplum/core` — FHIR system of record (hosted at api.medplum.com)
 - Stedi REST — real-time eligibility, **test mode only**
 
+## Medplum documentation is the source of truth
+
+Medplum's source is checked out at `medplum-link/`; its docs are under
+`medplum-link/packages/docs/docs/`. Read the relevant doc before building in a
+Medplum/FHIR area and adapt a real Medplum pattern instead of guessing. If the
+conversation has been compacted and the source text is no longer visible,
+re-read it before changing code.
+
+- FHIR R4 only. Type resources with `@medplum/fhirtypes` and reuse
+  `@medplum/core` helpers.
+- Never invent FHIR fields, search parameters, operations, or clinical codes.
+- Use conditional writes keyed by stable identifiers; never search then create.
+- Patient-compartment access comes from a resource's own patient reference.
+  Enforce access with `AccessPolicy` and `ProjectMembership`, never UI filters.
+- Before finishing, run `npm run check` and re-check the relevant Medplum doc.
+
 ## Layout and ownership
 
 ```

@@ -1,0 +1,30 @@
+{
+  "name": "countback",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.18.0 || >=24.2.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "seed": "tsx scripts/seed.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "5.7.0",
+    "@medplum/core": "5.1.27",
+    "@medplum/fhirtypes": "5.1.27",
+    "dotenv": "17.2.3",
+    "express": "5.2.1",
+    "ws": "8.21.1"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "24.10.1",
+    "@types/ws": "8.18.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
+  }
+}
