@@ -1,4 +1,4 @@
-# Countback — Stedi service (Person C)
+# Remed — Stedi service (Person C)
 
 Runnable on its own. You need **one** thing in `.env`: a Stedi **test-mode**
 API key. No Medplum, no Deepgram, no server, no teammates.

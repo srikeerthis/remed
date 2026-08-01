@@ -135,7 +135,22 @@ test('Countback HTTP API routes', async (t) => {
     assert.equal(patient.displayName, 'John Alvarez (Synthetic)');
     assert.equal(patient.memberId, 'MBR10001');
     assert.equal(Array.isArray(patient.medications), true);
-    assert.equal((patient.medications as unknown[]).length, 3);
+    assert.equal((patient.medications as unknown[]).length, 4);
+
+    // The agent leads with the medication for the most recent problem, so the
+    // indication link and the pill description have to survive.
+    const medications = patient.medications as Record<string, unknown>[];
+    const ibuprofen = medications.find((medication) => medication.display === 'Ibuprofen');
+    assert.ok(ibuprofen, 'Ibuprofen should be on the discharge list');
+    assert.equal(ibuprofen.indication, 'Dental pain following tooth extraction');
+    assert.equal(typeof ibuprofen.appearance, 'string');
+
+    const conditions = patient.conditions as Record<string, unknown>[];
+    assert.equal(Array.isArray(conditions), true);
+    assert.ok(
+      conditions.some((condition) => condition.display === 'Dental pain following tooth extraction'),
+      'the dental problem should be on the condition list',
+    );
   });
 
   await t.test('accepts a matching medication without creating an issue', async () => {

@@ -1,4 +1,4 @@
-# Countback integration handoff
+# Remed integration handoff
 
 Read `CLAUDE.md` first. This document explains how Persons A and C plug their
 implementations into the working Person B platform on the `backend` branch.

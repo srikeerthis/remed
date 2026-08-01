@@ -1,4 +1,4 @@
-# Countback — root context
+# Remed — root context
 
 Read this before touching anything. All three team members' agents read this file.
 

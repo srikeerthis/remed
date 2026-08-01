@@ -1,6 +1,6 @@
-# Countback
+# Remed
 
-Countback is a synthetic-patient medication-reconciliation voice demo built on Medplum, Deepgram, and Stedi. Read `CLAUDE.md` before changing code.
+Remed is a synthetic-patient medication-reconciliation voice demo built on Medplum, Deepgram, and Stedi. Read `CLAUDE.md` before changing code.
 
 Persons A and C should follow `INTEGRATION.md` when connecting the Deepgram and Stedi implementations. The credential-dependent and pre-demo work is tracked in `REMAINING.md`.
 
@@ -26,7 +26,7 @@ The credential-free clinical demo is fully interactive: use the buttons to show 
 npm run test:api
 ```
 
-The integration suite launches isolated Countback and Stedi-mock processes and verifies the console, health status, patient review, matching and mismatched medication reconciliation, cost routing, parsed coverage, symptom capture, urgent fixed response, issue listing, and malformed-request responses.
+The integration suite launches isolated Remed and Stedi-mock processes and verifies the console, health status, patient review, matching and mismatched medication reconciliation, cost routing, parsed coverage, symptom capture, urgent fixed response, issue listing, and malformed-request responses.
 
 ## Connect Medplum (Person B)
 

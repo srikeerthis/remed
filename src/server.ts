@@ -93,7 +93,7 @@ app.post('/api/demo/reconcile', async (request, response, next) => {
 
 app.post('/api/demo/coverage', async (request, response, next) => {
   try {
-    const { medicationName } = request.body as Record<string, unknown>;
+    const { medicationName, scenario: scenarioOverride } = request.body as Record<string, unknown>;
     if (typeof medicationName !== 'string' || !medicationName.trim()) {
       response.status(400).json({ error: 'medicationName is required' });
       return;
@@ -103,14 +103,105 @@ app.post('/api/demo/coverage', async (request, response, next) => {
       response.status(409).json({ error: 'Patient has no insurance member id' });
       return;
     }
-    bus.publish({ source: 'insurance', type: 'coverage.check.request', data: { medicationName } });
-    const result = await insuranceApi.checkCoverage(medicationName, review.memberId);
+    // The endpoint only applies a scenario when the caller passes one — auto-
+    // inferring from the seed would shadow live Stedi responses for anything
+    // rehearsal-tagged. Voice dispatch owns the "which scenario for which med"
+    // decision; this endpoint stays a straight passthrough.
+    const scenario = typeof scenarioOverride === 'string' && scenarioOverride
+      ? (scenarioOverride as import('./contract.js').CoverageScenario)
+      : undefined;
+    bus.publish({ source: 'insurance', type: 'coverage.check.request', data: { medicationName, scenario } });
+    const result = await insuranceApi.checkCoverage({
+      medicationName,
+      memberId: review.memberId,
+      ...(scenario ? { scenario } : {}),
+    });
     bus.publish({
       source: 'insurance',
       type: 'coverage.check.response',
-      data: { covered: result.covered, copay: result.copay, stubbed: result.stubbed },
+      data: {
+        medication: medicationName,
+        covered: result.covered,
+        copay: result.copay,
+        deductibleRemaining: result.deductibleRemaining,
+        priorAuthRequired: result.priorAuthRequired,
+        formularyStatus: result.formularyStatus,
+        scenario: result.scenario,
+        stubbed: result.stubbed,
+      },
     });
     response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/demo/refill', async (request, response, next) => {
+  try {
+    const { medicationName } = request.body as Record<string, unknown>;
+    if (typeof medicationName !== 'string' || !medicationName.trim()) {
+      response.status(400).json({ error: 'medicationName is required' });
+      return;
+    }
+    const status = await clinical.requestRefill({ patientId: demoPatientId, medicationName });
+    bus.publish({ source: 'clinical', type: 'refill.requested', data: status });
+    response.json(status);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/demo/care-team-note', async (request, response, next) => {
+  try {
+    const { topic, patientWords } = request.body as Record<string, unknown>;
+    if (typeof topic !== 'string' || !topic.trim() || typeof patientWords !== 'string' || !patientWords.trim()) {
+      response.status(400).json({ error: 'topic and patientWords are required' });
+      return;
+    }
+    const result = await clinical.recordCareTeamNote({ patientId: demoPatientId, topic, patientWords });
+    bus.publish({ source: 'clinical', type: 'care-team-note.recorded', data: { topic, noteId: result.noteId } });
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/demo/missed-dose', async (request, response, next) => {
+  try {
+    const { medicationName, patientWords, when } = request.body as Record<string, unknown>;
+    if (typeof medicationName !== 'string' || !medicationName.trim() || typeof patientWords !== 'string' || !patientWords.trim()) {
+      response.status(400).json({ error: 'medicationName and patientWords are required' });
+      return;
+    }
+    const result = await clinical.recordMissedDose({
+      patientId: demoPatientId,
+      medicationName,
+      patientWords,
+      ...(typeof when === 'string' && when ? { when } : {}),
+    });
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post('/api/demo/side-effect', async (request, response, next) => {
+  try {
+    const { medicationName, patientWords } = request.body as Record<string, unknown>;
+    if (typeof medicationName !== 'string' || !medicationName.trim() || typeof patientWords !== 'string' || !patientWords.trim()) {
+      response.status(400).json({ error: 'medicationName and patientWords are required' });
+      return;
+    }
+    const result = await clinical.recordSideEffectConcern({ patientId: demoPatientId, medicationName, patientWords });
+    response.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get('/api/demo/care-team-notes', async (_request, response, next) => {
+  try {
+    response.json(await clinical.listCareTeamNotes(demoPatientId));
   } catch (error) {
     next(error);
   }

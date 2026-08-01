@@ -136,7 +136,7 @@ async function main() {
   if (items.length > 25) console.log(`   … ${items.length - 25} more`);
 
   console.log("\n── what checkCoverage() would return ───────────");
-  const result = await insurance.checkCoverage(drug, MOCK_PATIENT.memberId);
+  const result = await insurance.checkCoverage({ medicationName: drug, memberId: MOCK_PATIENT.memberId });
   console.log(`   covered   ${result.covered}`);
   console.log(`   copay     ${result.copay ?? "—"}`);
   console.log(`   deduct    ${result.deductibleRemaining ?? "—"}`);

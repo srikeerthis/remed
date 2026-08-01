@@ -39,6 +39,12 @@ const REFERENCE: Record<string, MedicationReference> = {
     timeOfDay: ['08:00:00'],
     labelHint: 'the label reads Lisinopril 10 mg',
   },
+  ibuprofen: {
+    appearance: 'a brown oval tablet',
+    schedule: 'as needed for pain, up to three times a day',
+    timeOfDay: [],
+    labelHint: 'the label reads Ibuprofen 600 mg',
+  },
   atorvastatin: {
     appearance: 'a white oval tablet with rounded ends',
     schedule: 'once a day in the evening',

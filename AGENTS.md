@@ -1,4 +1,4 @@
-# Countback agent instructions
+# Remed agent instructions
 
 Read `CLAUDE.md` before changing code. It is the product and ownership source of truth for every coding assistant used in this repository.
 

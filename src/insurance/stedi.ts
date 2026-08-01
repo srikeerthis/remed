@@ -17,7 +17,7 @@
 import { config } from "../config.js";
 import { stediHeaders } from "../auth.js";
 import { resolveDemoIdentity } from "../demo-patients.js";
-import type { CoverageResult, InsuranceApi } from "../contract.js";
+import type { CoverageCheckInput, CoverageResult, InsuranceApi } from "../contract.js";
 
 export const ELIGIBILITY_PATH = "/2024-04-01/change/medicalnetwork/eligibility/v3";
 
@@ -155,7 +155,7 @@ function toSpeakable(
 /* ------------------------------- api ------------------------------- */
 
 export const insurance: InsuranceApi = {
-  async checkCoverage(medicationName: string, memberId: string): Promise<CoverageResult> {
+  async checkCoverage({ medicationName, memberId }: CoverageCheckInput): Promise<CoverageResult> {
     if (memberId !== MOCK_PATIENT.memberId) {
       console.warn(
         `[stedi] memberId "${memberId}" does not match the mock patient. Test mode will reject this.`
