@@ -7,11 +7,13 @@ import { createClinicalApi } from './clinical/index.js';
 import { createDemoClinicalApi } from './clinical/demo.js';
 import { insuranceApi, insuranceMode } from './insurance/index.js';
 import { createVoiceAdapter, URGENT_ESCALATION_RESPONSE } from './voice/index.js';
+import { startVoiceSession, stopVoiceSession } from './voice/session.js';
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 const app = express();
 const server = createServer(app);
 const sockets = new WebSocketServer({ server, path: '/events' });
+const callSockets = new WebSocketServer({ server, path: '/call' });
 
 app.use(express.json());
 app.use(express.static('public'));
@@ -114,6 +116,18 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
   const message = error instanceof Error ? error.message : 'Unknown server error';
   bus.publish({ source: 'server', type: 'request.failed', data: { message } });
   response.status(500).json({ error: message });
+});
+
+callSockets.on('connection', async (ws) => {
+  try {
+    const review = await clinical.getPatientReview(demoPatientId);
+    const memberId = review.memberId ?? '';
+    await startVoiceSession(ws, clinical, insuranceApi, demoPatientId, memberId);
+    ws.on('close', () => stopVoiceSession());
+  } catch (err) {
+    bus.publish({ source: 'voice', type: 'call.error', data: { error: String(err) } });
+    ws.close();
+  }
 });
 
 sockets.on('connection', (socket) => {

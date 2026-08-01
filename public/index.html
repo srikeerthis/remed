@@ -53,6 +53,15 @@
         </section>
 
         <section>
+          <h2>Voice call</h2>
+          <div class="controls">
+            <button id="start-call">Start call</button>
+            <button id="end-call" class="danger" style="display:none">End call</button>
+          </div>
+          <div id="call-status" class="muted">Call not started.</div>
+        </section>
+
+        <section>
           <h2>Patient words → clinician</h2>
           <textarea id="patient-words">I have felt dizzy since I came home.</textarea>
           <div class="controls">
@@ -149,6 +158,98 @@
       });
 
       Promise.all([loadPatient(), loadIssues()]).catch((error) => { $('#result').textContent = error.message; });
+
+      // ── Voice call ──────────────────────────────────────────────────────────
+      let callWs = null;
+      let micStream = null;
+      let audioCtx = null;
+      let playCtx = null;
+      let nextPlayTime = 0;
+
+      const pcmProcessorSrc = `
+        class PCMProcessor extends AudioWorkletProcessor {
+          process(inputs) {
+            const ch = inputs[0]?.[0];
+            if (ch) {
+              const out = new Int16Array(ch.length);
+              for (let i = 0; i < ch.length; i++)
+                out[i] = Math.max(-32768, Math.min(32767, ch[i] * 32767 | 0));
+              this.port.postMessage(out.buffer, [out.buffer]);
+            }
+            return true;
+          }
+        }
+        registerProcessor('pcm-processor', PCMProcessor);
+      `;
+
+      async function startCall() {
+        const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/call`;
+        callWs = new WebSocket(wsUrl);
+        callWs.binaryType = 'arraybuffer';
+
+        playCtx = new AudioContext({ sampleRate: 16000 });
+        nextPlayTime = 0;
+
+        callWs.addEventListener('message', (e) => {
+          if (!(e.data instanceof ArrayBuffer) || !e.data.byteLength) return;
+          const int16 = new Int16Array(e.data);
+          const float32 = new Float32Array(int16.length);
+          for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+          const buf = playCtx.createBuffer(1, float32.length, 16000);
+          buf.copyToChannel(float32, 0);
+          const src = playCtx.createBufferSource();
+          src.buffer = buf;
+          src.connect(playCtx.destination);
+          const now = playCtx.currentTime;
+          const t = Math.max(now + 0.05, nextPlayTime);
+          src.start(t);
+          nextPlayTime = t + buf.duration;
+        });
+
+        callWs.addEventListener('open', async () => {
+          $('#call-status').textContent = 'Connected — capturing mic…';
+          try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true } });
+            audioCtx = new AudioContext({ sampleRate: 16000 });
+            const blob = new Blob([pcmProcessorSrc], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            await audioCtx.audioWorklet.addModule(url);
+            URL.revokeObjectURL(url);
+            const source = audioCtx.createMediaStreamSource(micStream);
+            const processor = new AudioWorkletNode(audioCtx, 'pcm-processor');
+            processor.port.onmessage = (ev) => {
+              if (callWs && callWs.readyState === WebSocket.OPEN) callWs.send(ev.data);
+            };
+            source.connect(processor);
+            $('#call-status').textContent = 'Live — speak now.';
+            $('#start-call').style.display = 'none';
+            $('#end-call').style.display = '';
+          } catch (err) {
+            $('#call-status').textContent = `Mic error: ${err.message}`;
+            stopCall();
+          }
+        });
+
+        callWs.addEventListener('close', () => { $('#call-status').textContent = 'Call ended.'; resetCallUI(); });
+        callWs.addEventListener('error', () => { $('#call-status').textContent = 'Connection error.'; resetCallUI(); });
+      }
+
+      function stopCall() {
+        callWs?.close();
+        micStream?.getTracks().forEach((t) => t.stop());
+        audioCtx?.close();
+        playCtx?.close();
+        callWs = null; micStream = null; audioCtx = null; playCtx = null;
+        resetCallUI();
+      }
+
+      function resetCallUI() {
+        $('#start-call').style.display = '';
+        $('#end-call').style.display = 'none';
+      }
+
+      $('#start-call').addEventListener('click', startCall);
+      $('#end-call').addEventListener('click', stopCall);
     </script>
   </body>
 </html>
