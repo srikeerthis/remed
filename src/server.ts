@@ -12,8 +12,23 @@ import { startVoiceSession, stopVoiceSession } from './voice/session.js';
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 const app = express();
 const server = createServer(app);
-const sockets = new WebSocketServer({ server, path: '/events' });
-const callSockets = new WebSocketServer({ server, path: '/call' });
+// Both use noServer and share ONE upgrade listener. Passing { server, path }
+// twice makes each WebSocketServer add its own upgrade listener, and ws aborts
+// with 400 whenever the path is not its own — so whichever is constructed
+// first kills the other's handshake. That made every /call connection fail.
+const sockets = new WebSocketServer({ noServer: true });
+const callSockets = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (request, socket, head) => {
+  const { pathname } = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  const target = pathname === '/events' ? sockets : pathname === '/call' ? callSockets : null;
+  if (!target) {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  target.handleUpgrade(request, socket, head, (ws) => target.emit('connection', ws, request));
+});
 
 app.use(express.json());
 app.use(express.static('public'));
