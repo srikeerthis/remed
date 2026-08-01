@@ -5,7 +5,7 @@ export const TOOLS = [
   {
     name: "get_prescribed_medications",
     description:
-      "Fetch the list of medications prescribed to this patient at discharge. Call this at the start of the conversation before asking the patient about their bottles.",
+      "Re-read the medications prescribed to this patient at discharge, including what each pill looks like and when it is taken. The list is already in your instructions; call this only if you need to confirm it again.",
     parameters: {
       type: "object",
       properties: {
@@ -15,6 +15,25 @@ export const TOOLS = [
         },
       },
       required: ["patient_id"],
+    },
+  },
+  {
+    name: "describe_medication",
+    description:
+      "Describe what a specific prescribed pill looks like, from the patient's record. Call this when the patient cannot identify a bottle or asks what a medication looks like. Never describe a pill from your own knowledge — only report what this tool returns.",
+    parameters: {
+      type: "object",
+      properties: {
+        patient_id: {
+          type: "string",
+          description: "The patient's identifier.",
+        },
+        medication_name: {
+          type: "string",
+          description: "The medication the patient is asking about.",
+        },
+      },
+      required: ["patient_id", "medication_name"],
     },
   },
   {

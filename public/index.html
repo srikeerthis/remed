@@ -33,6 +33,7 @@
                color: #04140d; font-weight: 700; font-size: 15px; }
       button:disabled { cursor: not-allowed; opacity: .4; }
       button.danger { background: var(--danger); color: #210507; }
+      button.ghost { background: #1b3128; color: var(--text); font-weight: 600; padding: 10px 14px; font-size: 13px; }
       .callmeta { display: flex; flex-direction: column; gap: 2px; }
       #call-status { font-weight: 600; }
       .mic { display: flex; align-items: center; gap: 3px; height: 22px; margin-left: auto; }
@@ -109,6 +110,7 @@
     <div class="callbar">
       <button id="start-call">Start call</button>
       <button id="end-call" class="danger" style="display:none">End call</button>
+      <button id="new-review" class="ghost" title="Forget this conversation and start a fresh review">New review</button>
       <div class="callmeta">
         <div id="call-status">Call not started.</div>
         <div class="muted" id="patient-name">Loading patient…</div>
@@ -143,6 +145,11 @@
         <section>
           <h2>Behind the scenes</h2>
           <div id="activity"><div class="empty">Tool calls, Medplum writes, and payer checks appear here as they happen.</div></div>
+        </section>
+
+        <section>
+          <h2>What the agent remembers</h2>
+          <div id="memory"><div class="empty">Nothing yet — the agent starts fresh.</div></div>
         </section>
 
         <section>
@@ -318,6 +325,11 @@
             addActivity('↩', `${TOOL_LABELS[d.tool] ?? d.tool} returned`, null, 'good');
             return;
 
+          case 'memory.covered':
+          case 'memory.session':
+            loadMemory().catch(() => {});
+            return;
+
           case 'reconciliation.result':
             markMedication(d.medication, d.kind);
             addActivity(d.kind === 'match' ? '✓' : '⚠',
@@ -355,6 +367,7 @@
           case 'medplum.create.response':
             addActivity('📝', 'Written to Medplum', d.resource, 'good');
             loadIssues().catch(() => {});
+            loadMemory().catch(() => {});
             return;
           case 'medplum.search.response':
             addActivity('🔎', `Medplum returned ${d.count} ${d.resourceType}`, null);
@@ -392,6 +405,47 @@
         }
       }
 
+      /* ── conversation memory ────────────────────────────────────────────── */
+
+      async function loadMemory() {
+        const memory = await json('/api/demo/memory');
+        const target = $('#memory');
+        if (!memory.covered.length && !memory.symptoms.length && !memory.turns) {
+          target.replaceChildren(el('div', 'empty', 'Nothing yet — the agent starts fresh.'));
+          return;
+        }
+        const wrap = el('div');
+        const head = el('div', 'muted',
+          `session ${memory.sessions} · ${memory.turns} turns${memory.sessions > 1 ? ' · resumed after reconnect' : ''}`);
+        wrap.append(head);
+        for (const item of memory.covered) {
+          const row = el('div', 'issue');
+          row.append(el('h3', null, `${item.reported} — ${item.kind}`));
+          row.append(el('div', null, `“${item.patientWords}”`));
+          wrap.append(row);
+        }
+        for (const item of memory.coverage) {
+          wrap.append(el('div', 'issue', `${item.medication}: ${item.copay ?? 'no price returned'}${item.stubbed ? ' (recorded)' : ''}`));
+        }
+        for (const item of memory.symptoms) {
+          wrap.append(el('div', 'issue', `symptom recorded: “${item.patientWords}”`));
+        }
+        target.replaceChildren(wrap);
+      }
+
+      $('#new-review').addEventListener('click', async () => {
+        await json('/api/demo/memory/reset', { method: 'POST' });
+        transcriptStarted = false;
+        activityStarted = false;
+        $('#transcript').replaceChildren(el('div', 'empty', 'Start the call and speak — the conversation appears here.'));
+        $('#activity').replaceChildren(el('div', 'empty', 'Tool calls, Medplum writes, and payer checks appear here as they happen.'));
+        $('#coverage').classList.remove('show');
+        $('#escalation').classList.remove('show');
+        medications = medications.map((m) => ({ ...m, state: 'pending' }));
+        renderMedications();
+        await loadMemory();
+      });
+
       /* ── event socket ───────────────────────────────────────────────────── */
 
       let eventSocket = null;
@@ -425,7 +479,7 @@
       }
 
       connectEvents();
-      Promise.all([loadPatient(), loadIssues()]).catch((error) => {
+      Promise.all([loadPatient(), loadIssues(), loadMemory()]).catch((error) => {
         $('#call-status').textContent = error.message;
       });
 

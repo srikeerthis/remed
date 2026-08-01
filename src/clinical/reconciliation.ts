@@ -6,6 +6,18 @@ export interface ReconciliationMatch {
   shouldCheckCoverage: boolean;
 }
 
+/** Cost language, in a patient's words rather than a billing system's. */
+const COST_WORDS = [
+  'cost', 'costs', 'costly', 'expensive', 'afford', 'affordable', 'price', 'pricey',
+  'pricy', 'copay', 'co pay', 'too much', 'out of pocket', 'money', 'cheaper',
+  'insurance', 'not covered', 'coverage',
+];
+
+export function mentionsCost(text: string): boolean {
+  const haystack = normalize(text);
+  return COST_WORDS.some((word) => haystack.includes(word));
+}
+
 function normalize(value: string): string {
   return value.toLocaleLowerCase().replace(/[^a-z0-9.]+/g, ' ').trim();
 }
@@ -33,7 +45,10 @@ export function reconcileAgainst(
   input: ReportedMedication,
 ): ReconciliationMatch {
   const prescribed = medications.find((item) => medicationMatches(item.display, input.labelText));
-  const shouldCheckCoverage = !input.taking && normalize(input.stoppedReason ?? '').includes('cost');
+  // Any mention of cost triggers a live eligibility check — not only when the
+  // patient has already stopped. "I'm still taking it but it's expensive" is
+  // exactly the moment a real copay is worth saying out loud.
+  const shouldCheckCoverage = mentionsCost(`${input.stoppedReason ?? ''} ${input.patientWords}`);
 
   if (!prescribed) {
     return { kind: 'not-prescribed', shouldCheckCoverage };
@@ -55,6 +70,8 @@ export function reconcileAgainst(
   return {
     kind: doseDiffers || frequencyDiffers ? 'different-label' : 'match',
     prescribed,
-    shouldCheckCoverage: false,
+    // Still taking it and it matches, but they said it is expensive — that is
+    // exactly when a real copay is worth saying out loud, so keep the flag.
+    shouldCheckCoverage,
   };
 }

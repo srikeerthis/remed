@@ -2,10 +2,13 @@ import 'dotenv/config';
 import { MedplumClient } from '@medplum/core';
 import type { Coverage, MedicationRequest, Organization, Patient } from '@medplum/fhirtypes';
 import { resolveDemoIdentity } from '../src/demo-patients.js';
+import { lookupMedication } from '../src/medication-reference.js';
 
 const ID_SYSTEM = 'https://countback.health/identifiers/stedi-member-id';
 const TRADING_PARTNER_SYSTEM = 'https://stedi.com/identifiers/trading-partner-service-id';
 const MEDICATION_REQUEST_SYSTEM = 'https://countback.health/identifiers/demo-medication-request';
+// Parsed back out by src/clinical/index.ts. Keep the two in step.
+export const APPEARANCE_PREFIX = 'Appearance: ';
 
 const demoMedications = [
   { key: 'metformin', display: 'Metformin', instructions: 'Take 500 mg twice daily' },
@@ -118,6 +121,12 @@ console.log(JSON.stringify({ type: 'medplum.conditional-create.response', resour
 
 for (const medication of demoMedications) {
   const identifierValue = `${memberId}:${medication.key}`;
+  // Appearance and dosing times are written INTO Medplum so the voice agent
+  // reads them from the system of record at call time rather than from a
+  // table in the codebase. patientInstruction and Timing.repeat.timeOfDay are
+  // standard FHIR R4 fields; the pill description has no coded FHIR home, so
+  // it goes in a note tagged with a prefix we can parse back out.
+  const reference = lookupMedication(medication.display);
   const request: MedicationRequest = {
     resourceType: 'MedicationRequest',
     identifier: [{ system: MEDICATION_REQUEST_SYSTEM, value: identifierValue }],
@@ -125,7 +134,12 @@ for (const medication of demoMedications) {
     intent: 'order',
     subject: { reference: `Patient/${patient.id}` },
     medicationCodeableConcept: { text: medication.display },
-    dosageInstruction: [{ text: medication.instructions }],
+    dosageInstruction: [{
+      text: medication.instructions,
+      ...(reference ? { patientInstruction: reference.schedule } : {}),
+      ...(reference ? { timing: { repeat: { timeOfDay: reference.timeOfDay } } } : {}),
+    }],
+    ...(reference ? { note: [{ text: `${APPEARANCE_PREFIX}${reference.appearance}` }] } : {}),
   };
   console.log(JSON.stringify({ type: 'medplum.conditional-create.request', resourceType: 'MedicationRequest' }));
   const created = await medplum.createResourceIfNoneExist(
@@ -133,4 +147,15 @@ for (const medication of demoMedications) {
     `identifier=${encodeURIComponent(`${MEDICATION_REQUEST_SYSTEM}|${identifierValue}`)}`,
   );
   console.log(JSON.stringify({ type: 'medplum.conditional-create.response', resource: `MedicationRequest/${created.id}` }));
+
+  // Conditional create returns the EXISTING resource untouched, so a re-seed
+  // would never add appearance or dosing times to rows written by an earlier
+  // run. Update in place when the stored copy is missing what we now write.
+  const storedAppearance = created.note?.some((entry) => entry.text?.startsWith(APPEARANCE_PREFIX));
+  const storedTiming = created.dosageInstruction?.some((entry) => entry.timing?.repeat?.timeOfDay?.length);
+  if (reference && (!storedAppearance || !storedTiming)) {
+    console.log(JSON.stringify({ type: 'medplum.update.request', resource: `MedicationRequest/${created.id}` }));
+    const updated = await medplum.updateResource({ ...created, ...request, id: created.id });
+    console.log(JSON.stringify({ type: 'medplum.update.response', resource: `MedicationRequest/${updated.id}`, added: 'appearance+timing' }));
+  }
 }

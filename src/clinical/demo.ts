@@ -9,12 +9,24 @@ import type {
 } from '../contract.js';
 import { bus } from '../bus.js';
 import { reconcileAgainst } from './reconciliation.js';
+import { lookupMedication } from '../medication-reference.js';
+
+/**
+ * FALLBACK ONLY. This path runs when Medplum credentials are absent. With
+ * Medplum configured, appearance and timing come from the FHIR record instead
+ * — see src/clinical/index.ts.
+ */
+function withReference(medication: PrescribedMedication): PrescribedMedication {
+  const reference = lookupMedication(medication.display);
+  if (!reference) return medication;
+  return { ...medication, appearance: reference.appearance, schedule: reference.schedule, dueTimes: reference.timeOfDay };
+}
 
 const medications: PrescribedMedication[] = [
   { requestId: 'demo-metformin', display: 'Metformin', instructions: 'Take 500 mg twice daily', status: 'active' },
   { requestId: 'demo-lisinopril', display: 'Lisinopril', instructions: 'Take 10 mg once daily', status: 'active' },
   { requestId: 'demo-atorvastatin', display: 'Atorvastatin', instructions: 'Take 40 mg once daily', status: 'active' },
-];
+].map(withReference);
 
 export function createDemoClinicalApi(): ClinicalApi {
   const issues: ClinicalIssue[] = [];
@@ -40,7 +52,13 @@ export function createDemoClinicalApi(): ClinicalApi {
 
   return {
     async getPatientReview(patientId): Promise<PatientReview> {
-      return { patientId, displayName: 'John Alvarez (Synthetic)', memberId: 'MBR10001', medications };
+      return {
+        patientId,
+        displayName: 'John Alvarez (Synthetic)',
+        memberId: 'MBR10001',
+        dateOfBirth: '1968-03-14',
+        medications,
+      };
     },
 
     async reconcileMedication(input: ReportedMedication) {

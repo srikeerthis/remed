@@ -10,6 +10,16 @@ export interface PrescribedMedication {
   display: string;
   instructions?: string;
   status: string;
+  /**
+   * Spoken description of the pill, read from the Medplum record
+   * (MedicationRequest.note). Never model-generated — a wrong description
+   * could get a patient to confirm the wrong bottle. Absent = not on file.
+   */
+  appearance?: string;
+  /** Plain words for when it is taken, e.g. "once a day in the morning". */
+  schedule?: string;
+  /** FHIR Timing.repeat.timeOfDay (HH:MM:SS), e.g. ["08:00:00"]. */
+  dueTimes?: string[];
 }
 
 export interface PatientReview {
@@ -17,6 +27,8 @@ export interface PatientReview {
   displayName: string;
   /** Exact policy member id used by voice for an insurance check. */
   memberId?: string;
+  /** FHIR YYYY-MM-DD. Lets the agent answer identity questions from record. */
+  dateOfBirth?: string;
   medications: PrescribedMedication[];
 }
 

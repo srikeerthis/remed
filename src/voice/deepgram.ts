@@ -2,7 +2,8 @@ import { DeepgramClient } from '@deepgram/sdk';
 import type { Deepgram } from '@deepgram/sdk';
 import { ClinicalApi, InsuranceApi } from '../contract.js';
 import { bus } from '../bus.js';
-import { SYSTEM_PROMPT, detectEscalation } from './prompt.js';
+import { buildSystemPrompt, detectEscalation } from './prompt.js';
+import { beginSession, recordTurn } from './memory.js';
 import { TOOLS } from './tools.js';
 import { dispatch } from './dispatch.js';
 import { WebSocket } from 'ws';
@@ -51,6 +52,7 @@ export async function createDeepgramSession(
       const role = msg.role === 'user' ? 'patient' : 'agent';
       const text = msg.content ?? '';
       bus.publish({ source: 'voice', type: 'transcript', data: { role, text } });
+      recordTurn(patientId, role, text);
 
       if (role === 'patient') {
         const trigger = detectEscalation(text);
@@ -121,6 +123,23 @@ export async function createDeepgramSession(
     rejectSettingsApplied(err);
   });
 
+  // Load the record BEFORE opening the agent session so the medication list,
+  // pill descriptions, and dosing times are in the system prompt from turn one.
+  // Without this the agent can only ask the patient to remember.
+  const review = await clinical.getPatientReview(patientId);
+  // Replays anything already answered so a reconnect resumes the review
+  // instead of asking the patient the same questions twice.
+  const memory = beginSession(patientId);
+  bus.publish({
+    source: 'voice',
+    type: 'context.loaded',
+    data: {
+      patient: review.displayName,
+      medications: review.medications.map((medication) => medication.display),
+      withAppearance: review.medications.filter((medication) => medication.appearance).length,
+    },
+  });
+
   socket.connect();
   await socket.waitForOpen();
   deepgramOpen = true;
@@ -136,7 +155,7 @@ export async function createDeepgramSession(
       speak: { provider: { type: 'deepgram', model: 'aura-asteria-en' } },
       think: {
         provider: { type: 'open_ai', model: 'gpt-4o-mini' } as unknown as Deepgram.ThinkSettingsV1Provider,
-        prompt: SYSTEM_PROMPT,
+        prompt: buildSystemPrompt(review, new Date(), memory),
         functions: TOOLS,
       },
     },

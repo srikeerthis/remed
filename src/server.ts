@@ -7,6 +7,7 @@ import { createDemoClinicalApi } from './clinical/demo.js';
 import { insuranceApi, insuranceMode } from './insurance/index.js';
 import { createVoiceAdapter, URGENT_ESCALATION_RESPONSE } from './voice/index.js';
 import { startVoiceSession, stopVoiceSession } from './voice/session.js';
+import { getMemory, resetMemory } from './voice/memory.js';
 
 // Medplum's subscription client expects the browser WebSocket global, which Node 18 does not provide.
 if (!globalThis.WebSocket) Object.assign(globalThis, { WebSocket: WsClient });
@@ -129,6 +130,26 @@ app.post('/api/demo/symptom', async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+// Conversation memory: what the agent already asked and was told. Survives a
+// dropped socket so a reconnect resumes rather than restarts.
+app.get('/api/demo/memory', (_request, response) => {
+  const memory = getMemory(demoPatientId);
+  response.json({
+    sessions: memory.sessions,
+    covered: memory.covered,
+    coverage: memory.coverage,
+    symptoms: memory.symptoms,
+    escalated: memory.escalated,
+    turns: memory.turns.length,
+  });
+});
+
+// Start a genuinely new review — use between demo runs.
+app.post('/api/demo/memory/reset', (_request, response) => {
+  resetMemory(demoPatientId);
+  response.json({ ok: true });
 });
 
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => {

@@ -29,16 +29,34 @@ function medicationInstructions(request: MedicationRequest): string | undefined 
   return request.dosageInstruction?.map((instruction) => instruction.text).filter(Boolean).join('; ') || undefined;
 }
 
+/** MedicationRequest.note carrying the "Appearance: ..." prefix the seed writes. */
+const APPEARANCE_PREFIX = 'Appearance: ';
+
+function medicationAppearance(request: MedicationRequest): string | undefined {
+  const note = request.note?.find((entry) => entry.text?.startsWith(APPEARANCE_PREFIX));
+  return note?.text?.slice(APPEARANCE_PREFIX.length).trim() || undefined;
+}
+
 function toPrescribedMedication(request: MedicationRequest): PrescribedMedication {
   if (!request.id) {
     throw new Error('Medplum returned a MedicationRequest without an id');
   }
   const instructions = medicationInstructions(request);
+  const display = medicationDisplay(request);
+  // Everything below comes out of the Medplum record. `npm run seed` writes
+  // it; nothing here is hardcoded. Absent fields simply stay absent, and the
+  // agent is instructed to say "not on file" rather than fill the gap.
+  const appearance = medicationAppearance(request);
+  const schedule = request.dosageInstruction?.find((d) => d.patientInstruction)?.patientInstruction;
+  const dueTimes = request.dosageInstruction?.flatMap((d) => d.timing?.repeat?.timeOfDay ?? []) ?? [];
   return {
     requestId: request.id,
-    display: medicationDisplay(request),
+    display,
     status: request.status,
     ...(instructions ? { instructions } : {}),
+    ...(appearance ? { appearance } : {}),
+    ...(schedule ? { schedule } : {}),
+    ...(dueTimes.length ? { dueTimes } : {}),
   };
 }
 
@@ -113,6 +131,7 @@ export async function createClinicalApi(): Promise<ClinicalApi> {
         patientId,
         displayName: getDisplayString(patient),
         ...(memberId ? { memberId } : {}),
+        ...(patient.birthDate ? { dateOfBirth: patient.birthDate } : {}),
         medications,
       };
     },
