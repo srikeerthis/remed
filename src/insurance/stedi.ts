@@ -16,30 +16,25 @@
 
 import { config } from "../config.js";
 import { stediHeaders } from "../auth.js";
+import { resolveDemoIdentity } from "../demo-patients.js";
 import type { CoverageResult, InsuranceApi } from "../contract.js";
 
 export const ELIGIBILITY_PATH = "/2024-04-01/change/medicalnetwork/eligibility/v3";
 
 /* ------------------------------------------------------------------ */
-/* THE MOCK PATIENT — paste Stedi's approved values here at 9:30.      */
-/* Every other file in the repo is built to match these. Do not invent */
-/* values; test mode rejects anything not on the mock request list.    */
+/* THE MOCK PATIENT — resolved, not hardcoded.                          */
+/*                                                                      */
+/* Today this is the synthetic John Alvarez (DEMO_PATIENTS[0]) and we    */
+/* are pointed at the local mock server, because we have no Stedi test   */
+/* key. Real Stedi rejects this identity.                                */
+/*                                                                      */
+/* To go live: set the five DEMO_PATIENT_* values in .env from an        */
+/* approved portal patient and drop STEDI_BASE_URL. The Medplum seed     */
+/* reads the SAME resolver, so it moves with us — there is nothing to    */
+/* copy by hand and nothing that can silently disagree.                  */
 /* ------------------------------------------------------------------ */
 
-// CURRENTLY POINTED AT THE LOCAL MOCK SERVER (npm run stedi:mock), because
-// we have no Stedi test key. These are DEMO_PATIENTS[0] from
-// ../demo-patients.ts — synthetic, and rejected by the real Stedi.
-//
-// The moment a test key exists: replace all five with an approved mock
-// patient from the portal, drop STEDI_BASE_URL from .env, and broadcast the
-// values to the team. Nothing else in the file changes.
-export const MOCK_PATIENT = {
-  firstName: "John",
-  lastName: "Alvarez",
-  dateOfBirth: "19680314",        // note the format: no dashes
-  memberId: "MBR10001",
-  tradingPartnerServiceId: "00001",
-} as const;
+export const MOCK_PATIENT = resolveDemoIdentity();
 
 // Your own NPI is not required to be real for mock requests, but the payer
 // object IS required. Use whatever the mock request list shows.

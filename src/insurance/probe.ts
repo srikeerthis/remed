@@ -41,12 +41,16 @@ async function main() {
     );
   }
 
-  if (String(MOCK_PATIENT.firstName).startsWith("REPLACE")) {
+  // A synthetic identity is fine against the local mock and fatal against
+  // real Stedi, which answers AAA 72/75. Fail early rather than let someone
+  // read that error as a broken parser.
+  if (!MOCK_PATIENT.approved && !usingMock) {
     fail(
-      "MOCK_PATIENT still has placeholder values.\n" +
-        "    Open src/insurance/stedi.ts and paste one approved mock patient\n" +
-        "    from Stedi's Eligibility mock requests page, then post those exact\n" +
-        "    values to the team chat before anyone else writes code."
+      "The identity is the synthetic demo patient, which live Stedi rejects.\n" +
+        "    Set all five DEMO_PATIENT_* values in .env from an approved mock\n" +
+        "    patient on Stedi's Eligibility mock requests page, then post those\n" +
+        "    exact values to the team chat. The Medplum seed reads the same\n" +
+        "    values, so both move together."
     );
   }
   if (!/^\d{8}$/.test(MOCK_PATIENT.dateOfBirth)) {

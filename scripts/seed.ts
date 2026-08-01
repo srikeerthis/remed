@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { MedplumClient } from '@medplum/core';
 import type { Coverage, MedicationRequest, Organization, Patient } from '@medplum/fhirtypes';
+import { resolveDemoIdentity } from '../src/demo-patients.js';
 
 const ID_SYSTEM = 'https://countback.health/identifiers/stedi-member-id';
 const TRADING_PARTNER_SYSTEM = 'https://stedi.com/identifiers/trading-partner-service-id';
@@ -41,12 +42,23 @@ if (process.env.STEDI_TEST_MODE !== 'true') {
 
 const clientId = required('MEDPLUM_CLIENT_ID');
 const clientSecret = required('MEDPLUM_CLIENT_SECRET');
-const firstName = required('DEMO_PATIENT_FIRST_NAME');
-const lastName = required('DEMO_PATIENT_LAST_NAME');
-const stediDateOfBirth = required('DEMO_PATIENT_DATE_OF_BIRTH');
-const birthDate = toFhirBirthDate(stediDateOfBirth);
-const memberId = required('DEMO_PATIENT_MEMBER_ID');
-const tradingPartnerServiceId = required('DEMO_PATIENT_TRADING_PARTNER_SERVICE_ID');
+
+// Same resolver Stedi uses, so the seeded Patient and the eligibility request
+// cannot disagree. Set the five DEMO_PATIENT_* values to move both at once.
+const identity = resolveDemoIdentity();
+const { firstName, lastName, memberId, tradingPartnerServiceId } = identity;
+const birthDate = toFhirBirthDate(identity.dateOfBirth);
+
+if (!identity.approved) {
+  console.warn(
+    JSON.stringify({
+      type: 'seed.identity.synthetic',
+      message:
+        'DEMO_PATIENT_* is unset, so this seeds the synthetic demo patient. Live Stedi rejects it. Fine for rehearsal with the mock server; set all five before a live eligibility check.',
+      memberId,
+    }),
+  );
+}
 
 const medplum = new MedplumClient({ baseUrl: process.env.MEDPLUM_BASE_URL ?? 'https://api.medplum.com/' });
 console.log(JSON.stringify({ type: 'medplum.login.request' }));
