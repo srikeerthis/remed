@@ -2,6 +2,8 @@
 
 Countback is a synthetic-patient medication-reconciliation voice demo built on Medplum, Deepgram, and Stedi. Read `CLAUDE.md` before changing code.
 
+Persons A and C should follow `INTEGRATION.md` when connecting the Deepgram and Stedi implementations to the backend branch.
+
 ## Start locally
 
 The current Medplum SDK requires Node 22.18+ or 24.2+.
@@ -27,6 +29,8 @@ The credential-free clinical demo is fully interactive: use the buttons to show 
 5. Run `npm run seed`, then `npm run dev`. `/health` should report `clinical: "medplum"`.
 
 `npm run seed` refuses to run outside Stedi test mode or with any missing identity value. It uses stable identifiers and conditional creates, so rerunning it does not intentionally duplicate the Patient, payor Organization, or Coverage.
+
+For credential-free Stedi rehearsal, `npm run seed:demo` creates the five invented patients from `src/demo-patients.ts` in Medplum, with Coverage and MedicationRequests. These identities must only use the stub insurance path; they are guaranteed to fail live Stedi eligibility.
 
 ## Source-of-truth checkout
 

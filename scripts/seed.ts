@@ -20,6 +20,21 @@ function required(name: string): string {
   return value;
 }
 
+function toFhirBirthDate(stediDateOfBirth: string): string {
+  if (!/^\d{8}$/.test(stediDateOfBirth)) {
+    throw new Error('DEMO_PATIENT_DATE_OF_BIRTH must use Stedi YYYYMMDD format');
+  }
+  const year = stediDateOfBirth.slice(0, 4);
+  const month = stediDateOfBirth.slice(4, 6);
+  const day = stediDateOfBirth.slice(6, 8);
+  const result = `${year}-${month}-${day}`;
+  const parsed = new Date(`${result}T00:00:00Z`);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString().slice(0, 10) !== result) {
+    throw new Error('DEMO_PATIENT_DATE_OF_BIRTH is not a valid calendar date');
+  }
+  return result;
+}
+
 if (process.env.STEDI_TEST_MODE !== 'true') {
   throw new Error('Seed refused: STEDI_TEST_MODE must be exactly "true"');
 }
@@ -28,7 +43,8 @@ const clientId = required('MEDPLUM_CLIENT_ID');
 const clientSecret = required('MEDPLUM_CLIENT_SECRET');
 const firstName = required('DEMO_PATIENT_FIRST_NAME');
 const lastName = required('DEMO_PATIENT_LAST_NAME');
-const birthDate = required('DEMO_PATIENT_DATE_OF_BIRTH');
+const stediDateOfBirth = required('DEMO_PATIENT_DATE_OF_BIRTH');
+const birthDate = toFhirBirthDate(stediDateOfBirth);
 const memberId = required('DEMO_PATIENT_MEMBER_ID');
 const tradingPartnerServiceId = required('DEMO_PATIENT_TRADING_PARTNER_SERVICE_ID');
 

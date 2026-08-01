@@ -4,3 +4,4 @@ dist/
 .DS_Store
 medplum-link/
 npm-debug.log*
+.stedi-last.json
