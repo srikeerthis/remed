@@ -151,8 +151,12 @@ To switch to the real Stedi test environment:
 
 1. Generate a test-mode API key.
 2. Choose an approved Eligibility mock-request patient in the Stedi portal.
-3. Replace all five `MOCK_PATIENT` values in `src/insurance/stedi.ts` exactly.
-4. Broadcast those values so B's Medplum seed matches.
+3. Set all five `DEMO_PATIENT_*` values in `.env` exactly. Do NOT edit
+   `MOCK_PATIENT` in `src/insurance/stedi.ts` — it resolves from those env
+   values, and so does `npm run seed`, so Stedi and Medplum move together.
+   Setting only some of the five fails fast rather than sending a half-and-half
+   subscriber block.
+4. Broadcast those values to the team.
 5. Set `STEDI_API_KEY` in `.env`.
 6. Remove `STEDI_BASE_URL` from `.env`; otherwise calls continue to use the
    local mock server.
