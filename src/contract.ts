@@ -15,6 +15,8 @@ export interface PrescribedMedication {
 export interface PatientReview {
   patientId: string;
   displayName: string;
+  /** Exact policy member id used by voice for an insurance check. */
+  memberId?: string;
   medications: PrescribedMedication[];
 }
 
@@ -54,19 +56,6 @@ export interface UrgentIssueInput {
   patientWords: string;
 }
 
-export interface CoverageCheckRequest {
-  patientId: string;
-  memberId: string;
-  tradingPartnerServiceId: string;
-  medicationText: string;
-}
-
-export interface CoverageCheckResult {
-  status: 'active' | 'inactive' | 'unknown';
-  copayCents?: number;
-  rawReference?: string;
-}
-
 export interface ClinicalApi {
   getPatientReview(patientId: string): Promise<PatientReview>;
   reconcileMedication(input: ReportedMedication): Promise<ReconciliationResult>;
@@ -75,8 +64,19 @@ export interface ClinicalApi {
   listIssues(patientId: string): Promise<ClinicalIssue[]>;
 }
 
+export interface CoverageResult {
+  covered: boolean;
+  copay: string | null;
+  coinsurance: string | null;
+  deductibleRemaining: string | null;
+  /** Patient-facing text. Never contains an invented payer figure. */
+  speakable: string;
+  /** True for the recorded/local fallback; disclose this during the demo. */
+  stubbed: boolean;
+}
+
 export interface InsuranceApi {
-  checkCoverage(input: CoverageCheckRequest): Promise<CoverageCheckResult>;
+  checkCoverage(medicationName: string, memberId: string): Promise<CoverageResult>;
 }
 
 export const stubClinical: ClinicalApi = {
@@ -98,7 +98,14 @@ export const stubClinical: ClinicalApi = {
 };
 
 export const stubInsurance: InsuranceApi = {
-  async checkCoverage() {
-    return { status: 'unknown' };
+  async checkCoverage(medicationName) {
+    return {
+      covered: true,
+      copay: '$10',
+      coinsurance: null,
+      deductibleRemaining: null,
+      speakable: `Good news — ${medicationName} is covered. Your copay would be ten dollars.`,
+      stubbed: true,
+    };
   },
 };

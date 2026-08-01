@@ -106,7 +106,15 @@ export async function createClinicalApi(): Promise<ClinicalApi> {
   return {
     async getPatientReview(patientId): Promise<PatientReview> {
       const [patient, medications] = await Promise.all([loadPatient(patientId), loadMedications(patientId)]);
-      return { patientId, displayName: getDisplayString(patient), medications };
+      const memberId = patient.identifier?.find((identifier) =>
+        identifier.system?.includes('member-id') && Boolean(identifier.value)
+      )?.value;
+      return {
+        patientId,
+        displayName: getDisplayString(patient),
+        ...(memberId ? { memberId } : {}),
+        medications,
+      };
     },
 
     async reconcileMedication(input: ReportedMedication): Promise<ReconciliationResult> {

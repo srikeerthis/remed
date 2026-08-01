@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import { bus, type BusEvent } from './bus.js';
 import { createClinicalApi } from './clinical/index.js';
 import { createDemoClinicalApi } from './clinical/demo.js';
-import { insuranceApi } from './insurance/index.js';
+import { insuranceApi, insuranceMode } from './insurance/index.js';
 import { createVoiceAdapter, URGENT_ESCALATION_RESPONSE } from './voice/index.js';
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
@@ -26,7 +26,7 @@ app.get('/health', (_request, response) => {
     ok: true,
     adapters: {
       clinical: hasMedplumCredentials ? 'medplum' : 'demo',
-      insurance: 'stub',
+      insurance: insuranceMode,
       voice: voice.ready ? 'deepgram' : 'stub',
     },
   });

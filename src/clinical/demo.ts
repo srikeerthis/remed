@@ -40,7 +40,7 @@ export function createDemoClinicalApi(): ClinicalApi {
 
   return {
     async getPatientReview(patientId): Promise<PatientReview> {
-      return { patientId, displayName: 'Synthetic Demo Patient', medications };
+      return { patientId, displayName: 'John Alvarez (Synthetic)', memberId: 'MBR10001', medications };
     },
 
     async reconcileMedication(input: ReportedMedication) {

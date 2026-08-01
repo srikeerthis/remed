@@ -9,7 +9,9 @@ implementations into the working Person B platform on the `backend` branch.
 - `src/server.ts` selects hosted Medplum when both Medplum credentials exist;
   otherwise it uses the in-memory clinical demo.
 - Person A currently has a stub in `src/voice/index.ts`.
-- Person C currently has a stub export in `src/insurance/index.ts`.
+- Person C's Stedi client, parser, probe, and local mock server are integrated.
+- `src/insurance/index.ts` selects Stedi when `STEDI_API_KEY` is set and uses
+  the honest recorded stub otherwise.
 - All cross-team data types live in `src/contract.ts`.
 - The browser console receives integration events through `src/bus.ts`.
 
@@ -57,7 +59,8 @@ The voice implementation must call `dependencies.clinical` and
    `clinical.reconcileMedication()`. Preserve the original words in
    `patientWords`.
 4. If the result has `shouldCheckCoverage: true`, call
-   `insurance.checkCoverage()`. Clinical must never call insurance directly.
+   `insurance.checkCoverage(medicationName, review.memberId)`. Do not make the
+   call when `memberId` is absent. Clinical must never call insurance directly.
 5. Record non-urgent symptoms with `clinical.recordSymptom()` and say only
    that the care team will review them.
 6. On an urgent trigger, stop the medication review, call
@@ -96,18 +99,23 @@ the shared server only during the integration merge.
 Read `src/insurance/CLAUDE.md` before implementation. Person C owns only
 `src/insurance/` except for a coordinated contract or shared-config change.
 
-Implement `InsuranceApi`:
+The integrated `InsuranceApi` is:
 
 ```ts
 interface InsuranceApi {
-  checkCoverage(input: CoverageCheckRequest): Promise<CoverageCheckResult>;
+  checkCoverage(medicationName: string, memberId: string): Promise<CoverageResult>;
 }
 ```
 
-Then replace the stub export in `src/insurance/index.ts`:
+`CoverageResult` includes `speakable` and `stubbed`; Person A must speak the
+provided sentence without inventing a price and must visibly disclose a
+stubbed result during the demo.
 
-```ts
-export { insuranceApi } from './stedi.js';
+Run C's implementation in isolation before voice integration:
+
+```bash
+npm run stedi:mock   # terminal 1
+npm run stedi:probe  # terminal 2
 ```
 
 ### Required Stedi behavior
@@ -127,20 +135,8 @@ export { insuranceApi } from './stedi.js';
 The five identities in `src/demo-patients.ts` are only for Medplum and the
 stub demonstration. They are guaranteed to fail live Stedi eligibility.
 
-### Coordinated contract decision
-
-Before editing `src/contract.ts`, A, B, and C should agree on these two points:
-
-1. `CoverageCheckRequest` currently requires `memberId` and
-   `tradingPartnerServiceId`. Decide whether A reads them from shared validated
-   configuration or C owns the approved `MOCK_PATIENT` and the request only
-   carries `patientId` plus `medicationText`.
-2. C's instructions require honest patient-facing output. The recommended
-   result adds `speakable: string` and `stubbed: boolean` so A cannot
-   accidentally present a recorded fallback as live.
-
-Do not make either signature change on one person's branch without notifying
-the team.
+`PatientReview.memberId` is the boundary between B and A. C owns the remaining
+approved mock-patient fields inside `stedi.ts`; A must not import that file.
 
 ## Person B: Medplum setup
 
@@ -164,8 +160,8 @@ the seed command. `/health` should then report `clinical: "medplum"`.
 
 ## Merge order
 
-1. Freeze `src/contract.ts` after the two decisions above.
-2. Merge Person C's insurance implementation and run its isolated probe.
+1. Treat the integrated `src/contract.ts` as frozen.
+2. Run Person C's isolated mock/probe gate.
 3. Merge Person A's voice implementation against the frozen interfaces.
 4. Person B resolves shared-file conflicts in `contract.ts`, `server.ts`,
    `bus.ts`, and the console.

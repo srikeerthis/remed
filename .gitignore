@@ -1,7 +1,9 @@
 node_modules/
 dist/
 .env
+.env.local
 .DS_Store
 medplum-link/
-npm-debug.log*
 .stedi-last.json
+*.log
+npm-debug.log*

@@ -11,6 +11,8 @@
     "start": "tsx src/server.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "stedi:probe": "tsx src/insurance/probe.ts",
+    "stedi:mock": "tsx src/insurance/mock-server.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {
