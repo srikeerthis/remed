@@ -32,6 +32,7 @@ export async function startVoiceSession(
     bus.publish({ source: 'voice', type: 'session.active', data: { patientId } });
   } catch (err) {
     bus.publish({ source: 'voice', type: 'session.error', data: { error: String(err) } });
+    throw err;
   }
 }
 

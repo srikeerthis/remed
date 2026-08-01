@@ -25,25 +25,11 @@ export async function createDeepgramSession(
   const client = new DeepgramClient({ apiKey });
 
   const socket = await client.agent.v1.connect({ Authorization: apiKey });
-
-  socket.on('open', () => {
-    bus.publish({ source: 'voice', type: 'deepgram.open', data: {} });
-    socket.sendSettings({
-      type: 'Settings',
-      audio: {
-        input: { encoding: 'linear16', sample_rate: 16000 },
-        output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
-      },
-      agent: {
-        listen: { provider: { type: 'deepgram', model: 'nova-2' } as Deepgram.agent.AgentV1SettingsAgentContextListenProvider },
-        speak: { provider: { type: 'deepgram', model: 'aura-asteria-en' } },
-        think: {
-          provider: { type: 'open_ai', model: 'gpt-4o-mini' } as unknown as Deepgram.ThinkSettingsV1Provider,
-          prompt: SYSTEM_PROMPT,
-          functions: TOOLS,
-        },
-      },
-    });
+  let resolveSettingsApplied!: () => void;
+  let rejectSettingsApplied!: (error: Error) => void;
+  const settingsApplied = new Promise<void>((resolve, reject) => {
+    resolveSettingsApplied = resolve;
+    rejectSettingsApplied = reject;
   });
 
   socket.on('message', async (msg) => {
@@ -56,6 +42,7 @@ export async function createDeepgramSession(
 
     if (msg.type === 'SettingsApplied') {
       bus.publish({ source: 'voice', type: 'deepgram.settings_applied', data: msg });
+      resolveSettingsApplied();
       return;
     }
 
@@ -106,6 +93,7 @@ export async function createDeepgramSession(
 
     if (msg.type === 'Error') {
       bus.publish({ source: 'voice', type: 'deepgram.error', data: msg });
+      rejectSettingsApplied(new Error(`Deepgram rejected the session: ${JSON.stringify(msg)}`));
       return;
     }
   });
@@ -119,11 +107,39 @@ export async function createDeepgramSession(
 
   socket.on('close', () => {
     bus.publish({ source: 'voice', type: 'deepgram.closed', data: {} });
+    rejectSettingsApplied(new Error('Deepgram closed before applying settings'));
   });
 
   socket.on('error', (err) => {
     bus.publish({ source: 'voice', type: 'deepgram.error', data: { message: err.message } });
+    rejectSettingsApplied(err);
   });
+
+  socket.connect();
+  await socket.waitForOpen();
+  bus.publish({ source: 'voice', type: 'deepgram.open', data: {} });
+  socket.sendSettings({
+    type: 'Settings',
+    audio: {
+      input: { encoding: 'linear16', sample_rate: 16000 },
+      output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
+    },
+    agent: {
+      listen: { provider: { type: 'deepgram', model: 'nova-2' } as Deepgram.agent.AgentV1SettingsAgentContextListenProvider },
+      speak: { provider: { type: 'deepgram', model: 'aura-asteria-en' } },
+      think: {
+        provider: { type: 'open_ai', model: 'gpt-4o-mini' } as unknown as Deepgram.ThinkSettingsV1Provider,
+        prompt: SYSTEM_PROMPT,
+        functions: TOOLS,
+      },
+    },
+  });
+  await Promise.race([
+    settingsApplied,
+    new Promise<never>((_resolve, reject) => {
+      setTimeout(() => reject(new Error('Timed out waiting for Deepgram settings')), 10_000);
+    }),
+  ]);
 
   return {
     sendAudio(chunk: Buffer) {

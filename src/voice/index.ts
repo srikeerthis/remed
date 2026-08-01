@@ -11,9 +11,10 @@ export interface VoiceDependencies {
 }
 
 export function createVoiceAdapter(dependencies: VoiceDependencies): {
-  ready: true;
+  ready: boolean;
   dependencies: VoiceDependencies;
 } {
-  bus.publish({ source: 'voice', type: 'voice.adapter.ready', data: { provider: 'deepgram' } });
-  return { ready: true, dependencies };
+  const ready = Boolean(process.env.DEEPGRAM_API_KEY?.trim());
+  bus.publish({ source: 'voice', type: 'voice.adapter.ready', data: { provider: 'deepgram', configured: ready } });
+  return { ready, dependencies };
 }

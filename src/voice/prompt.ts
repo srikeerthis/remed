@@ -33,10 +33,6 @@ You have access to these tools:
 - escalate_urgent
 `.trim();
 
-// Hardcoded — never model-generated. Delivered verbatim when triggered.
-export const ESCALATION_RESPONSE =
-  "I need to stop our call right now — please hang up and call 911 or have someone take you to the emergency room immediately.";
-
 export const ESCALATION_TRIGGERS = [
   "chest pain",
   "trouble breathing",

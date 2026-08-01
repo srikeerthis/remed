@@ -3,6 +3,8 @@ import { once } from 'node:events';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import path from 'node:path';
 import test, { after, before } from 'node:test';
+import WebSocket from 'ws';
+import { URGENT_ESCALATION_RESPONSE } from '../src/voice/index.js';
 
 const projectRoot = process.cwd();
 const tsxCli = path.join(projectRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
@@ -89,6 +91,7 @@ before(async () => {
     PORT: String(appPort),
     MEDPLUM_CLIENT_ID: '',
     MEDPLUM_CLIENT_SECRET: '',
+    DEEPGRAM_API_KEY: '',
     STEDI_API_KEY: 'local-mock-key',
     STEDI_BASE_URL: mockBaseUrl,
     STEDI_TEST_MODE: 'true',
@@ -116,6 +119,13 @@ test('Countback HTTP API routes', async (t) => {
       ok: true,
       adapters: { clinical: 'demo', insurance: 'mock', voice: 'stub' },
     });
+  });
+
+  await t.test('rejects voice calls clearly when Deepgram is not configured', async () => {
+    const socket = new WebSocket(`${appBaseUrl.replace('http', 'ws')}/call`);
+    const [code, reason] = await once(socket, 'close') as [number, Buffer];
+    assert.equal(code, 1013);
+    assert.equal(reason.toString(), 'Deepgram is not configured');
   });
 
   await t.test('returns the synthetic patient review', async () => {
@@ -191,7 +201,7 @@ test('Countback HTTP API routes', async (t) => {
     assert.equal(response.status, 200);
     assert.equal(
       result.spokenResponse,
-      'I’m stopping the medication review now. Please call 911 or go to the nearest emergency department now.',
+      URGENT_ESCALATION_RESPONSE,
     );
   });
 

@@ -1,13 +1,15 @@
 import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'node:http';
-import { WebSocketServer } from 'ws';
+import WsClient, { WebSocketServer } from 'ws';
 import { bus, type BusEvent } from './bus.js';
-import { createClinicalApi } from './clinical/index.js';
 import { createDemoClinicalApi } from './clinical/demo.js';
 import { insuranceApi, insuranceMode } from './insurance/index.js';
 import { createVoiceAdapter, URGENT_ESCALATION_RESPONSE } from './voice/index.js';
 import { startVoiceSession, stopVoiceSession } from './voice/session.js';
+
+// Medplum's subscription client expects the browser WebSocket global, which Node 18 does not provide.
+if (!globalThis.WebSocket) Object.assign(globalThis, { WebSocket: WsClient });
 
 const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 const app = express();
@@ -34,7 +36,9 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const hasMedplumCredentials = Boolean(process.env.MEDPLUM_CLIENT_ID && process.env.MEDPLUM_CLIENT_SECRET);
-const clinical = hasMedplumCredentials ? await createClinicalApi() : createDemoClinicalApi();
+const clinical = hasMedplumCredentials
+  ? await (await import('./clinical/index.js')).createClinicalApi()
+  : createDemoClinicalApi();
 const voice = createVoiceAdapter({ clinical, insurance: insuranceApi });
 const demoPatientId = process.env.DEMO_MEDPLUM_PATIENT_ID || 'demo-patient';
 
@@ -134,14 +138,20 @@ app.use((error: unknown, _request: express.Request, response: express.Response, 
 });
 
 callSockets.on('connection', async (ws) => {
+  if (!voice.ready) {
+    bus.publish({ source: 'voice', type: 'call.rejected', data: { reason: 'DEEPGRAM_API_KEY is not set' } });
+    ws.close(1013, 'Deepgram is not configured');
+    return;
+  }
   try {
     const review = await clinical.getPatientReview(demoPatientId);
     const memberId = review.memberId ?? '';
     await startVoiceSession(ws, clinical, insuranceApi, demoPatientId, memberId);
+    ws.send(JSON.stringify({ type: 'ready' }));
     ws.on('close', () => stopVoiceSession());
   } catch (err) {
     bus.publish({ source: 'voice', type: 'call.error', data: { error: String(err) } });
-    ws.close();
+    ws.close(1011, 'Voice session failed');
   }
 });
 

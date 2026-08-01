@@ -18,6 +18,7 @@
       .medication + .medication, .issue + .issue, .event + .event { margin-top: 8px; }
       .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
       button { border: 0; border-radius: 8px; padding: 9px 12px; cursor: pointer; background: #4ad295; color: #04140d; font-weight: 700; }
+      button:disabled { cursor: not-allowed; opacity: .45; }
       button.secondary { background: #233d31; color: #dcebe3; } button.danger { background: #f07178; color: #210507; }
       textarea { width: 100%; min-height: 70px; resize: vertical; border: 1px solid #365746; background: #08120e; color: #e8f0ec; border-radius: 8px; padding: 10px; }
       .badge { display: inline-block; border-radius: 999px; padding: 3px 8px; background: #244334; font-size: 12px; }
@@ -103,6 +104,11 @@
       async function loadPatient() {
         const [health, patient] = await Promise.all([json('/health'), json('/api/demo/patient')]);
         $('#mode').textContent = `clinical: ${health.adapters.clinical}`;
+        const voiceReady = health.adapters.voice === 'deepgram';
+        $('#start-call').disabled = !voiceReady;
+        $('#call-status').textContent = voiceReady
+          ? 'Ready to start a voice call.'
+          : 'Deepgram is not configured. Add DEEPGRAM_API_KEY to .env and restart the server.';
         $('#patient-name').textContent = patient.displayName;
         $('#medications').replaceChildren(...patient.medications.map((medication) => {
           const row = document.createElement('div'); row.className = 'medication';
@@ -145,17 +151,34 @@
       $('#urgent').addEventListener('click', () => recordSymptom(true));
       $('#refresh').addEventListener('click', loadIssues);
 
-      const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/events`);
-      socket.addEventListener('open', () => { $('#status').textContent = 'live'; $('#status').style.color = '#72d5a5'; });
-      socket.addEventListener('close', () => { $('#status').textContent = 'disconnected'; $('#status').style.color = '#ef7b7b'; });
-      socket.addEventListener('message', ({ data }) => {
+      let eventSocket = null;
+      let reconnectTimer = null;
+
+      function showEvent({ data }) {
         const event = JSON.parse(data); const row = document.createElement('div'); row.className = 'event';
         const time = document.createElement('time'); time.textContent = new Date(event.at).toLocaleTimeString();
         const type = document.createElement('strong'); type.textContent = `${event.source} · ${event.type}`;
         row.append(time, type);
         if (event.data !== undefined) { const details = document.createElement('pre'); details.textContent = JSON.stringify(event.data, null, 2); row.append(details); }
         $('#events').prepend(row);
-      });
+      }
+
+      function connectEvents() {
+        clearTimeout(reconnectTimer);
+        eventSocket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/events`);
+        eventSocket.addEventListener('open', () => {
+          $('#status').textContent = 'live';
+          $('#status').style.color = '#72d5a5';
+        });
+        eventSocket.addEventListener('message', showEvent);
+        eventSocket.addEventListener('close', () => {
+          $('#status').textContent = 'reconnecting…';
+          $('#status').style.color = '#f0bd68';
+          reconnectTimer = setTimeout(connectEvents, 1000);
+        });
+      }
+
+      connectEvents();
 
       Promise.all([loadPatient(), loadIssues()]).catch((error) => { $('#result').textContent = error.message; });
 
@@ -164,6 +187,9 @@
       let micStream = null;
       let audioCtx = null;
       let playCtx = null;
+      let micSource = null;
+      let micProcessor = null;
+      let silentGain = null;
       let nextPlayTime = 0;
 
       const pcmProcessorSrc = `
@@ -183,14 +209,55 @@
       `;
 
       async function startCall() {
-        const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/call`;
-        callWs = new WebSocket(wsUrl);
-        callWs.binaryType = 'arraybuffer';
+        $('#start-call').disabled = true;
+        try {
+          const health = await json('/health');
+          if (health.adapters.voice !== 'deepgram') {
+            throw new Error('Deepgram is not configured. Add DEEPGRAM_API_KEY to .env and restart the server.');
+          }
+          if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Microphone access is unavailable. Open the app on localhost or HTTPS.');
+          }
 
-        playCtx = new AudioContext({ sampleRate: 16000 });
-        nextPlayTime = 0;
+          $('#call-status').textContent = 'Allow microphone access to begin the call…';
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+          audioCtx = new AudioContext({ sampleRate: 16000 });
+          playCtx = new AudioContext({ sampleRate: 16000 });
+          await Promise.all([audioCtx.resume(), playCtx.resume()]);
+
+          const blob = new Blob([pcmProcessorSrc], { type: 'application/javascript' });
+          const url = URL.createObjectURL(blob);
+          try { await audioCtx.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+
+          micSource = audioCtx.createMediaStreamSource(micStream);
+          micProcessor = new AudioWorkletNode(audioCtx, 'pcm-processor');
+          silentGain = audioCtx.createGain();
+          silentGain.gain.value = 0;
+          micSource.connect(micProcessor);
+          micProcessor.connect(silentGain);
+          silentGain.connect(audioCtx.destination);
+
+          const wsUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/call`;
+          callWs = new WebSocket(wsUrl);
+          callWs.binaryType = 'arraybuffer';
+          nextPlayTime = 0;
+        } catch (error) {
+          stopCall();
+          $('#call-status').textContent = `Unable to start call: ${error.message}`;
+          return;
+        }
 
         callWs.addEventListener('message', (e) => {
+          if (typeof e.data === 'string') {
+            const message = JSON.parse(e.data);
+            if (message.type === 'ready') {
+              micProcessor.port.onmessage = (event) => {
+                if (callWs?.readyState === WebSocket.OPEN) callWs.send(event.data);
+              };
+              $('#call-status').textContent = 'Live — speak now.';
+            }
+            return;
+          }
           if (!(e.data instanceof ArrayBuffer) || !e.data.byteLength) return;
           const int16 = new Int16Array(e.data);
           const float32 = new Float32Array(int16.length);
@@ -206,31 +273,16 @@
           nextPlayTime = t + buf.duration;
         });
 
-        callWs.addEventListener('open', async () => {
-          $('#call-status').textContent = 'Connected — capturing mic…';
-          try {
-            micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true } });
-            audioCtx = new AudioContext({ sampleRate: 16000 });
-            const blob = new Blob([pcmProcessorSrc], { type: 'application/javascript' });
-            const url = URL.createObjectURL(blob);
-            await audioCtx.audioWorklet.addModule(url);
-            URL.revokeObjectURL(url);
-            const source = audioCtx.createMediaStreamSource(micStream);
-            const processor = new AudioWorkletNode(audioCtx, 'pcm-processor');
-            processor.port.onmessage = (ev) => {
-              if (callWs && callWs.readyState === WebSocket.OPEN) callWs.send(ev.data);
-            };
-            source.connect(processor);
-            $('#call-status').textContent = 'Live — speak now.';
-            $('#start-call').style.display = 'none';
-            $('#end-call').style.display = '';
-          } catch (err) {
-            $('#call-status').textContent = `Mic error: ${err.message}`;
-            stopCall();
-          }
+        callWs.addEventListener('open', () => {
+          $('#call-status').textContent = 'Connecting to voice service…';
+          $('#start-call').style.display = 'none';
+          $('#end-call').style.display = '';
         });
 
-        callWs.addEventListener('close', () => { $('#call-status').textContent = 'Call ended.'; resetCallUI(); });
+        callWs.addEventListener('close', (event) => {
+          $('#call-status').textContent = event.reason || 'Call ended.';
+          resetCallUI();
+        });
         callWs.addEventListener('error', () => { $('#call-status').textContent = 'Connection error.'; resetCallUI(); });
       }
 
@@ -239,11 +291,16 @@
         micStream?.getTracks().forEach((t) => t.stop());
         audioCtx?.close();
         playCtx?.close();
+        micSource?.disconnect();
+        micProcessor?.disconnect();
+        silentGain?.disconnect();
         callWs = null; micStream = null; audioCtx = null; playCtx = null;
+        micSource = null; micProcessor = null; silentGain = null;
         resetCallUI();
       }
 
       function resetCallUI() {
+        $('#start-call').disabled = false;
         $('#start-call').style.display = '';
         $('#end-call').style.display = 'none';
       }
