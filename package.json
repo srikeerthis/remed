@@ -1,0 +1,25 @@
+{
+  "name": "remed",
+  "version": "1.0.0",
+  "description": "Voice agent for post-discharge medication reconciliation",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "ts-node src/server.ts",
+    "seed": "ts-node scripts/seed.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@deepgram/sdk": "^3.9.0",
+    "@medplum/core": "^3.2.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.17.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
